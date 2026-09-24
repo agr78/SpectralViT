@@ -58,7 +58,7 @@ def SpectralViT_cv(X_flat, Y, pca_candidates, device, epochs=20, lr=1e-3):
             torch.cuda.empty_cache()
             
             # Fit PCA
-            pca_model = PCA(n_components=n_comp, whiten=True).fit(X_flat[train_idx])
+            pca_model = PCA(n_components=n_comp, whiten=True, random_state=0).fit(X_flat[train_idx])
             tr_pca = torch.from_numpy(pca_model.transform(X_flat[train_idx])).float()
             tr_y = torch.from_numpy(Y[train_idx]).float()
             ts_pca = torch.from_numpy(pca_model.transform(X_flat[test_idx])).float().to(device)
