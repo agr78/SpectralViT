@@ -1,6 +1,8 @@
 # Ignore PyTorch model files
 *.pt
 *.pth
+
+# Extras
 ixi_nd.ipynb
 ixi_last.ipynb
 mt.ipynb
@@ -9,3 +11,10 @@ simc.ipynb
 spat_v_spect.ipynb
 unet_comp.ipynb
 zvit.ipynb
+
+# Launch scripts and docs live in `/spectralvit_kb/jobs`, not the repo
+*.sbatch
+slurm/
+
+# Covariates
+docs/

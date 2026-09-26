@@ -77,7 +77,7 @@ class QSM_Dataset(Dataset):
         self.resample_fn = resample_fn
 
         if load_cache and cache_path and os.path.exists(cache_path):
-            cached_data = torch.load(cache_path)
+            cached_data = torch.load(cache_path, weights_only=False)
             samples = cached_data['samples']
             mismatches = [s for s in samples if s['label'] != self.label_map.get(str(s['sub_id']), -1)]
             
@@ -234,7 +234,15 @@ class QSM_Dataset(Dataset):
             img_slice = vol[:, :, meta['slice_idx']]
             img_tensor = torch.from_numpy(img_slice).unsqueeze(0) 
             
-            clin_data = self.clinical_dict.get(str(meta['sub_id']), np.zeros(9))
+            # reader.py fills clinical_dict for every discovered subject (zeros for
+            # unlabeled ones), so a miss here means the dataset and the CSV disagree.
+            # Fail rather than train on a silent zero vector.
+            _sid = str(meta['sub_id'])
+            if _sid not in self.clinical_dict:
+                raise KeyError(
+                    f"subject {_sid} has no clinical covariates; "
+                    f"dataset and clinical CSV disagree ({len(self.clinical_dict)} subjects in dict)")
+            clin_data = self.clinical_dict[_sid]
             return img_tensor, torch.tensor(clin_data, dtype=torch.float32), int(meta['label']), index
     
 
@@ -261,7 +269,7 @@ class QSM_c1_Dataset(Dataset):
 
         # --- IMPROVED INTEGRITY CHECK ---
         if load_cache and cache_path and os.path.exists(cache_path):
-            cached_data = torch.load(cache_path)
+            cached_data = torch.load(cache_path, weights_only=False)
             samples = cached_data['samples']
             
             # Check if any subject in the cache is -1 BUT exists in our current label_map

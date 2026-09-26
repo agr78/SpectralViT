@@ -3,6 +3,7 @@ import tempfile
 import shutil
 import gzip
 import numpy as np
+import torch
 import pandas as pd
 import nibabel as nib
 from loader import QSM_Dataset
@@ -42,8 +43,23 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
     # 2. DIRECTORY SETUP & CHH INJECTION LOGIC
     forced_unlabeled_ids = set()
     resample_fn = None
+
+    # QSM_Dataset returns straight from the cache, so the raw NIfTI trees are only
+    # needed to enumerate subject ids. Take those from the cache when it is present
+    # and skip the staging below, which would fail on a missing nii_path.
+    cached_ids = None
+    if load_cache and cache_path and os.path.exists(cache_path):
+        _cached = torch.load(cache_path, map_location='cpu', weights_only=False)
+        cached_ids = {str(int(sm['sub_id'])) for sm in _cached['samples']}
+        print(f"Cache present: {len(cached_ids)} subjects, skipping raw NIfTI discovery.")
+        del _cached
     
-    if source_type.upper() == 'CHH':
+    if cached_ids is not None:
+        # Nothing downstream reads these when loading from cache.
+        final_nii_dir, final_seg_dir = nii_path, seg_path
+        if source_type.upper() == 'CHH':
+            resample_fn = fast_resample_sharp
+    elif source_type.upper() == 'CHH':
         resample_fn = fast_resample_sharp 
         final_nii_dir, final_seg_dir = tempfile.mkdtemp(), tempfile.mkdtemp()
         
@@ -110,13 +126,15 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
         final_nii_dir, final_seg_dir = nii_path, seg_path
 
     # --- DISCOVER FILES ON DISK ---
-    if debug and source_type.upper() == 'CHH':
+    if debug and source_type.upper() == 'CHH' and cached_ids is None:
         all_subject_ids_on_disk = set()
         for f in os.listdir(nii_path):
              if f.endswith('.nii.gz') and f[0].isdigit():
                  all_subject_ids_on_disk.add(str(int(f.split('_')[0])))
         for sid in forced_unlabeled_ids:
             all_subject_ids_on_disk.add(sid)
+    elif cached_ids is not None:
+        all_subject_ids_on_disk = set(cached_ids)
     else:
         all_qsm_files = [f for f in os.listdir(final_nii_dir) if f.endswith('.nii.gz')]
         all_subject_ids_on_disk = []
