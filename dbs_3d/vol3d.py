@@ -46,7 +46,8 @@ def vols(ds,imp):
         info=sorted([(float(v[lb==b].mean()),b) for b in big],key=lambda t:t[0])
         b=info[1][1]                        # higher-susceptibility side
         cx,cy,cz=[int(round(c)) for c in ndimage.center_of_mass(m,lb,[b])[0]]
-        sl=(slice(max(0,cx-H),max(0,cx-H)+2*H),slice(max(0,cy-H),max(0,cy-H)+2*H),slice(max(0,cz-DZ),max(0,cz-DZ)+2*DZ))
+        _x=min(max(0,cx-H), v.shape[0]-2*H); _y=min(max(0,cy-H), v.shape[1]-2*H); _z=min(max(0,cz-DZ), v.shape[2]-2*DZ)
+        sl=(slice(_x,_x+2*H),slice(_y,_y+2*H),slice(_z,_z+2*DZ))
         pv,pm=v[sl],m[sl]
         if pv.shape!=(2*H,2*H,2*DZ): continue
         V.append(pv); M.append(pm); S.append(s)

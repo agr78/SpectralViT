@@ -18,3 +18,10 @@ slurm/
 
 # Covariates
 docs/
+# Python bytecode
+__pycache__/
+*.pyc
+
+# Experiment outputs
+results/
+hcp_age_bak.txt

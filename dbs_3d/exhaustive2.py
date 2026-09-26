@@ -49,7 +49,8 @@ def raw_crops(ds, imp, H, grad):
             gx,gy=np.gradient(v,axis=0),np.gradient(v,axis=1); vv=np.sqrt(gx**2+gy**2).astype(np.float32)
         for i in range(v.shape[2]):
             if m[:,:,i].sum()==0: continue
-            pa=vv[max(0,cx-H):max(0,cx-H)+2*H, max(0,cy-H):max(0,cy-H)+2*H, i]
+            _x=min(max(0,cx-H), vv.shape[0]-2*H); _y=min(max(0,cy-H), vv.shape[1]-2*H)
+            pa=vv[_x:_x+2*H, _y:_y+2*H, i]
             if pa.shape==(2*H,2*H): F.append(pa.ravel()); P.append(s)
     return np.array(F,np.float32), np.array(P)
 

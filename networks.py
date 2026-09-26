@@ -23,7 +23,10 @@ class SpectralViT(nn.Module):
         pooling='mean',         
         use_layer_norm=True,    
         learnable_rank_weights=True,
-        use_sigmoid=False       
+        use_sigmoid=False,
+        use_linear_residual=False,   # DBS: linear path on the raw token vector
+        pos_embed_init='randn',      # 'zeros' for the DBS configuration
+        batch_first=False            # DBS uses batch-first tensors
     ):
         super().__init__()
         self.patch_size = patch_size
@@ -33,6 +36,8 @@ class SpectralViT(nn.Module):
         self.pooling = pooling
         self.use_sigmoid = use_sigmoid
         self.use_input_proj = use_input_proj
+        self.use_linear_residual = use_linear_residual
+        self.batch_first = batch_first
 
         if sampling_indices is not None:
             self.register_buffer('sampling_indices', sampling_indices)
@@ -59,12 +64,16 @@ class SpectralViT(nn.Module):
 
         # 3. Positional Embedding - Force (Seq, 1, Dim) for correct broadcasting
         if self.use_pos_embed:
-            self.pos_embed = nn.Parameter(torch.randn(n_inputs, 1, self.d_model) * 0.02)
+            if pos_embed_init == 'zeros':
+                self.pos_embed = nn.Parameter(torch.zeros(n_inputs, 1, self.d_model))
+            else:
+                self.pos_embed = nn.Parameter(torch.randn(n_inputs, 1, self.d_model) * 0.02)
 
         # 4. Transformer
         encoder_layer = nn.TransformerEncoderLayer(
-            d_model=self.d_model, nhead=n_heads, 
-            dim_feedforward=embed_dim * 2, dropout=0.1
+            d_model=self.d_model, nhead=n_heads,
+            dim_feedforward=embed_dim * 2, dropout=0.1,
+            batch_first=batch_first
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
 
@@ -75,9 +84,13 @@ class SpectralViT(nn.Module):
         else:
             self.mlp_head = nn.Linear(head_in, 1)
 
+        if use_linear_residual:
+            self.linear_residual = nn.Linear(n_inputs, 1)
+
     def forward(self, x, return_logit=False):
         if x.ndim == 1: x = x.unsqueeze(0)
         b = x.shape[0]
+        raw = x
 
         # A. Optional Sampling
         if self.sampling_indices is not None:
@@ -100,23 +113,29 @@ class SpectralViT(nn.Module):
             # [Batch, Seq] -> [Batch, Seq, Patch]
             x = x.view(b, -1, self.patch_size)
             # [Batch, Seq, Dim] -> [Seq, Batch, Dim]
-            x = self.input_proj(x).transpose(0, 1)
+            x = self.input_proj(x)
+            if not self.batch_first: x = x.transpose(0, 1)
         
         # D. Position Addition (Safely Broadcasted)
         if self.use_pos_embed:
-            # Ensure pos_embed matches sequence length and broadcasts over batch (dim 1)
-            x = x + self.pos_embed[:x.size(0), :, :]
+            if self.batch_first:
+                x = x + self.pos_embed[:x.size(1), 0, :].unsqueeze(0)
+            else:
+                # Ensure pos_embed matches sequence length and broadcasts over batch (dim 1)
+                x = x + self.pos_embed[:x.size(0), :, :]
             
         x = self.transformer(x)
         
         # E. Pooling
         if self.pooling == 'mean':
-            x = x.mean(dim=0)
+            x = x.mean(dim=1 if self.batch_first else 0)
         else:
             # Result: [Batch, Seq * Dim]
             x = x.transpose(0, 1).flatten(1)
             
         logit = self.mlp_head(x).squeeze(-1)
+        if self.use_linear_residual:
+            logit = logit + self.linear_residual(raw).squeeze(-1)
         if logit.ndim == 0: logit = logit.unsqueeze(0)
         if self.use_sigmoid and not return_logit:
             return torch.sigmoid(logit)
