@@ -25,3 +25,5 @@ __pycache__/
 # Experiment outputs
 results/
 hcp_age_bak.txt
+dbs_3d/verify_5tests.ipynb
+dbs_3d/metrics_table.*
