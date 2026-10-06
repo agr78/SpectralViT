@@ -24,7 +24,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.metrics import roc_auc_score
 from basis_fix import low_modes, eigvals
 from rank_model import RankAttn
-from networks import AttentionUNet
+from networks import AttentionUNet, ClinicalTransformer
 
 PHASE = sys.argv[1]
 MODEL = sys.argv[2]
@@ -92,6 +92,8 @@ def predict(tr, te, y, seed):
         return tfit(lambda: TokenViT(QA.shape[1]), QA[tr], y[tr].astype(float), QB if ext else QA[te], seed)
     if MODEL == 'Attention UNet':
         return ufit(UA[tr], y[tr].astype(float), UB if ext else UA[te], seed)
+    if MODEL == 'Clinical Transformer':
+        return cfit(DA[tr], y[tr].astype(float), DB if ext else DA[te], seed)
     return ofit(ZA[tr], DA[tr], y[tr].astype(float),
                 (ZB, DB) if ext else (ZA[te], DA[te]), seed)
 
@@ -104,6 +106,18 @@ def tfit(mk, Xtr, ytr, Xte, seed, ep=200):
         opt.zero_grad(); lf(m(xt), yt).backward(); opt.step()
     m.eval()
     with torch.no_grad(): return sig(m(T(Xte)).cpu().numpy())
+
+
+def cfit(Xtr, ytr, Xte, seed, ep=200):
+    """Clinical covariates as tokens; embed/heads/layers as reported in the manuscript."""
+    torch.manual_seed(seed)
+    m = ClinicalTransformer(Xtr.shape[1], embed_dim=32, n_heads=2, n_layers=1).to(dev)
+    opt = torch.optim.AdamW(m.parameters(), 3e-3, weight_decay=0.1); lf = nn.BCEWithLogitsLoss()
+    xt = T(Xtr); yt = torch.tensor(ytr, dtype=torch.float32, device=dev)
+    for _ in range(ep):
+        opt.zero_grad(); lf(m(xt, return_logit=True), yt).backward(); opt.step()
+    m.eval()
+    with torch.no_grad(): return sig(m(T(Xte), return_logit=True).cpu().numpy())
 
 
 def ufit(Xtr, ytr, Xte, seed, ep=200):
