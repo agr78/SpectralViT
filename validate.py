@@ -36,17 +36,18 @@ from sklearn.metrics import roc_auc_score
 from util import mean_std_str, seed_everything
 from networks import SpectralViT, SpatialViT
 
-def SpectralViT_cv(X_flat, Y, pca_candidates, device, epochs=20, lr=1e-3):
-    """EXACT replication of the standalone Spectral script logic."""
-    
-    # 1. Reset the seed to 0 
-    seed_everything(0)
-    
-    # 2. Batch size
-    kf_peek = KFold(n_splits=5, shuffle=True, random_state=0)
-    for _, test_idx in kf_peek.split(X_flat):
-        fixed_batch_size = len(test_idx) 
+def SpectralViT_cv(X_flat, Y, pca_candidates, device, epochs=500, lr=1e-4,
+                   batch_size=8, use_mode_weights=True):
+    """Select the PCA component count by cross-validation.
 
+    The probe must train the same architecture the same way as the arm it selects for,
+    or its ranking is noise. Previously it set the batch size to the size of a test fold
+    (~113 of 566), which left ~100 optimizer steps over 20 epochs against ~28,500 in the
+    real fit, ran at 10x the learning rate, and omitted use_mode_weights -- so every
+    candidate returned chance (0.511-0.544) and selection was arbitrary.
+    """
+    seed_everything(0)
+    fixed_batch_size = batch_size
     results = {}
     print(f"\nStarting Selection over PCA components: {pca_candidates}")
 
@@ -71,7 +72,8 @@ def SpectralViT_cv(X_flat, Y, pca_candidates, device, epochs=20, lr=1e-3):
                 n_inputs=n_comp, n_heads=2, embed_dim=16, n_layers=4,
                 patch_size=1, use_rank_weights=True, learnable_rank_weights=True,
                 use_input_proj=True, use_pos_embed=True, pooling='mean',
-                use_layer_norm=True, use_sigmoid=False
+                use_layer_norm=True, use_sigmoid=False,
+                use_mode_weights=use_mode_weights
             ).to(device)
             
             opt = optim.AdamW(model.parameters(), lr=lr)
@@ -98,8 +100,14 @@ def SpectralViT_cv(X_flat, Y, pca_candidates, device, epochs=20, lr=1e-3):
 
     return max(results, key=lambda k: np.mean(results[k]))
 
-def SpatialViT_cv(X, Y, patch_candidates, device, vol_size=96, epochs=20, lr=1e-3, physical_bs=2, effective_bs=8):
-    """EXACT replication of the standalone Spatial script logic."""
+def SpatialViT_cv(X, Y, patch_candidates, device, vol_size=96, epochs=500, lr=1e-4,
+                  physical_bs=2, effective_bs=8):
+    """Select the spatial patch size by cross-validation.
+
+    Architecture and batching already match the arm; the epoch and learning-rate defaults
+    did not (20 epochs at 1e-3 gave ~1,120 optimizer steps against ~28,500 in the real
+    fit), so they now match too.
+    """
     # Reset seed to 0 before starting the spatial grid
     seed_everything(0)
     
