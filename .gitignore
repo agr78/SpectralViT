@@ -46,3 +46,6 @@ paper/
 # otherwise bury git status and sit one `git add -A` away from being committed.
 slurm-*.out
 *.bak*
+
+# Working notes imported from another knowledge base; not part of the paper
+handoff_for_new_kb_*.md
