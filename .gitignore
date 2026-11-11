@@ -24,9 +24,25 @@ __pycache__/
 
 # Experiment outputs
 results/
+# Datasets and caches: MedMNIST npz, the CIFAR batches, anything a sweep downloads or
+# stages. These belong on spacelink, not in the repo; data/ is only ever a staging point.
+data/
 hcp_age_bak.txt
 dbs_3d/verify_5tests.ipynb
 dbs_3d/metrics_table.*
 
 # Recovered from /checkpoints/zip/manuscript.zip, not repo content
 paper/
+# Exception, force-added once and so tracked from here on: every manuscript figure has
+# to rebuild from a repo script against these inputs, which is not possible if they are
+# only ever in /tmp. A tracked path ignores the rule above, so no negation is needed.
+#   paper/cvpr/fig/data/
+# Participant-level tables. hca_ages_raw.tsv and participants_hca.tsv are HCP-Aging
+# subject IDs with ages, which the NIMH Data Archive DUC does not permit redistributing,
+# and this repo is public. They belong on spacelink with the cohort data.
+*.tsv
+# SLURM stdout dropped in the repo root by jobs run from here, and the .bak* snapshots the
+# sweeps leave when a config is swapped. Both are working residue: ~45 and ~25 files that
+# otherwise bury git status and sit one `git add -A` away from being committed.
+slurm-*.out
+*.bak*

@@ -502,40 +502,127 @@ class MultiLayerPerceptron(nn.Module):
         """
         return self.network(x)
     
+class MultiClassLinearHead(nn.Module):
+    """Multinomial logistic regression on the same coefficients the spectral arm receives.
+
+    LogisticRegression above returns [B, 1] and is the binary arm used by the MRI sweeps;
+    the multi-class benchmarks (MNIST, CIFAR, LFW, ModelNet40) need [B, C]. Kept as a
+    separate class so no existing call or stored result changes.
+
+    This is the control the reviewers ask for on every benchmark: with the softmax it is
+    exactly multinomial logistic regression on the coefficients, so a margin over it is
+    attributable to the encoder rather than to the basis.
+    """
+    def __init__(self, input_dim: int, num_classes: int):
+        super().__init__()
+        self.linear = nn.Linear(input_dim, num_classes)
+
+    def forward(self, x):
+        return self.linear(x)
+
+
 class MultiClassSpectralViT(nn.Module):
-    def __init__(self, n_inputs, chunk_size=4, num_classes=10, embed_dim=128, n_heads=4, n_layers=2):
+    """Multi-class spectral ViT.
+
+    use_rank_weights and use_mode_weights are the two mechanisms SpectralViT carries and
+    this variant originally did not: the 1/i variance hierarchy, and the component-wise
+    embedding W_phi,i that sec:ca describes (cost_embed = n * d_e). Both default to False so
+    every existing call, and every result already computed with them, is unchanged.
+    """
+    def __init__(self, n_inputs, chunk_size=4, num_classes=10, embed_dim=128, n_heads=4, n_layers=2,
+                 use_rank_weights=False, learnable_rank_weights=True, use_mode_weights=False,
+                 rank_groups=None, use_pos_embed=True):
         super().__init__()
         self.chunk_size = chunk_size
-        self.n_tokens = n_inputs // chunk_size
-        self.proj = nn.Linear(chunk_size, embed_dim)
-        self.pos_embed = nn.Parameter(torch.zeros(1, self.n_tokens, embed_dim))
+        self.use_rank_weights = use_rank_weights
+        self.use_mode_weights = use_mode_weights
+        # The positional embedding was unconditional here, so every experiment on this class
+        # carried one whether or not its token index denoted a position. Under
+        # use_mode_weights the index is a COEFFICIENT rank (n_tokens == n_inputs), not a
+        # location, and a learned per-index code then re-learns what the rank weight already
+        # states. Defaults True, so every result already computed is unchanged.
+        self.use_pos_embed = use_pos_embed
+        if use_rank_weights:
+            # rank_groups gives the length of each basis when several are concatenated, so
+            # the 1/i profile restarts per basis. A single profile across a concatenation
+            # would assert that every coefficient of the first basis outranks every
+            # coefficient of the second, which is not a statement either hierarchy makes:
+            # PCA is ordered by variance and the DCT by frequency, and the two orderings
+            # are not commensurable. None keeps the original single-profile behaviour.
+            if rank_groups:
+                assert sum(rank_groups) == n_inputs, (rank_groups, n_inputs)
+                ranks = torch.cat([torch.arange(1, g + 1, dtype=torch.float32)
+                                   for g in rank_groups])
+            else:
+                ranks = torch.arange(1, n_inputs + 1, dtype=torch.float32)
+            if learnable_rank_weights:
+                self.rank_weights = nn.Parameter(1.0 / ranks)
+            else:
+                self.register_buffer('rank_weights', 1.0 / ranks)
+        if use_mode_weights:
+            # One embedding vector per coefficient, so rank i keeps its own weights rather
+            # than sharing a projection with every other position-i-within-chunk.
+            self.n_tokens = n_inputs
+            self.mode_weights = nn.Parameter(torch.randn(n_inputs, embed_dim) * 0.02)
+        else:
+            self.n_tokens = n_inputs // chunk_size
+            self.proj = nn.Linear(chunk_size, embed_dim)
+        if use_pos_embed:
+            self.pos_embed = nn.Parameter(torch.zeros(1, self.n_tokens, embed_dim))
         encoder_layer = nn.TransformerEncoderLayer(d_model=embed_dim, nhead=n_heads)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
         self.classifier = nn.Linear(embed_dim, num_classes)
 
     def forward(self, x):
         b = x.shape[0]
-        x = x.view(b, self.n_tokens, self.chunk_size)
-        x = self.proj(x) + self.pos_embed
+        if self.use_rank_weights:
+            x = x * self.rank_weights[:x.size(1)]
+        if self.use_mode_weights:
+            x = x.unsqueeze(-1) * self.mode_weights[:x.size(1), :].unsqueeze(0)
+        else:
+            x = x.view(b, self.n_tokens, self.chunk_size)
+            x = self.proj(x)
+        if self.use_pos_embed:
+            x = x + self.pos_embed
         x = x.permute(1, 0, 2) # (Seq, Batch, Dim) for legacy
         x = self.transformer(x)
         return self.classifier(x.mean(dim=0))
 
 class MultiClassSpatialViT(nn.Module):
-    def __init__(self, num_classes=10, size=28, patch_size=4, in_channels=1, embed_dim=128, n_heads=4, n_layers=2):
+    """Patch-tokenizing baseline. volumetric=True takes (B,C,D,H,W) and cubic patches,
+    keeping the encoder identical so a 3D comparison stays parameter matched the way the
+    2D ones are. Defaults to 2D, so existing calls are unchanged.
+
+    stride < patch_size makes the patches OVERLAP. This is the control the overlapping
+    block-DCT tokenizer of sec:corr needs: that arm takes a fixed 4x4 cosine transform at
+    stride two and is compared against patches at stride four, so stride and basis vary
+    together and the gain cannot be attributed to either. At the same stride the two differ
+    only in whether the per-patch map is fixed-then-projected or learned outright. Defaults
+    to patch_size, which is the critically sampled tokenizer every stored result used."""
+    def __init__(self, num_classes=10, size=28, patch_size=4, in_channels=1, embed_dim=128, n_heads=4, n_layers=2,
+                 volumetric=False, stride=None):
         super().__init__()
         self.patch_size = patch_size
-        self.n_patches = (size // patch_size) ** 2
-        self.proj = nn.Linear(patch_size * patch_size * in_channels, embed_dim)
+        self.stride = patch_size if stride is None else stride
+        self.volumetric = volumetric
+        d = 3 if volumetric else 2
+        self.n_patches = ((size - patch_size) // self.stride + 1) ** d
+        self.proj = nn.Linear(patch_size ** d * in_channels, embed_dim)
         self.pos_embed = nn.Parameter(torch.zeros(1, self.n_patches, embed_dim))
         encoder_layer = nn.TransformerEncoderLayer(d_model=embed_dim, nhead=n_heads)
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
         self.classifier = nn.Linear(embed_dim, num_classes)
 
     def forward(self, x):
-        b, c, h, w = x.shape
-        p = self.patch_size
-        x = x.unfold(2, p, p).unfold(3, p, p).contiguous().view(b, self.n_patches, -1) 
+        b, p, st = x.shape[0], self.patch_size, self.stride
+        # permute so a token is one spatial location across all channels; without this
+        # a token mixes several spatial patches of a single channel whenever c > 1.
+        if self.volumetric:
+            x = x.unfold(2, p, st).unfold(3, p, st).unfold(4, p, st)
+            x = x.permute(0, 2, 3, 4, 1, 5, 6, 7)
+        else:
+            x = x.unfold(2, p, st).unfold(3, p, st).permute(0, 2, 3, 1, 4, 5)
+        x = x.contiguous().view(b, self.n_patches, -1)
         x = self.proj(x) + self.pos_embed
         x = x.permute(1, 0, 2) 
         x = self.transformer(x)
