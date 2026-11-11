@@ -9,7 +9,7 @@ The coefficient count is set per run, not per arm, so each row is a separate swe
     sel    hca_pooled_n{N}_cv.csv    HCA_FREQS=2,3,4, chosen by inner CV
 
 Seeds 0-4 are in those files; seeds 5-9 at n=25 and n=50 are in per-seed companions
-written by run_hca_draws10.sbatch / run_hca_cadiz.sh, and are unioned here. Draws are
+written by run_hca_draws10.sbatch / jobs/run_hca_cadiz.sh, and are unioned here. Draws are
 counted PER MODEL, not per file: the backfill deliberately raised only the arms any
 reported number depends on, so a file can hold ten draws of one arm and five of another.
 A cell whose draw count is not the expected one is refused rather than printed.

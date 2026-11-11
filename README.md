@@ -2,7 +2,10 @@
 
 Repository for [_Spectral Vision Transformer for Efficient Tokenization with Limited Data_](https://openreview.net/pdf?id=cH5gmxBepK).
 
-![Our proposed spectral ViT differs primarily from conventional ViTs by constructing spectral rather than spatial tokens. Spectral tokens from any ordered basis possess inherent rank or hierarchical order. Our approach introduces a global inductive bias and spectral positional embeddings by mode rather than local patch embedding. Tinted cells carry learned weights. The spatial ViT must learn its projection, whereas the spectral projection is fixed, leaving only the rank weights and the positional embeddings to be learned.](spectralViT.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="spectralViT_dark.png">
+  <img alt="Our proposed spectral ViT differs primarily from conventional ViTs by constructing spectral rather than spatial tokens. Spectral tokens from any ordered basis possess inherent rank or hierarchical order. Our approach introduces a global inductive bias and spectral positional embeddings by mode rather than local patch embedding. Tinted cells carry learned weights. The spatial ViT must learn its projection, whereas the spectral projection is fixed, leaving only the rank weights and the positional embeddings to be learned." src="spectralViT.png">
+</picture>
 
 ## Summary
 Efficient image tokenization using projections on to spectral bases to reduce the number of parameters associated with fitting vision transformers.

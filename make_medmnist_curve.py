@@ -5,7 +5,7 @@ wiped on restart, so nothing in the repo rebuilt it and its source could not be 
 looking under results/medmnist* -- the data lives under results/ladder_* instead. This is
 that script, recovered and pinned.
 
-Two directories feed it, both produced by run_ladder_sweep.sh:
+Two directories feed it, both produced by jobs/run_ladder_sweep.sh:
 
   results/ladder_report_n<N>.tsv        the config select_ladder.py picked at size N,
                                         one line per cohort: ds, patch, tag, cfg

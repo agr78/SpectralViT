@@ -7,7 +7,7 @@ that file -- not the hca_ckpt_*.npz resume checkpoints, which hold the raw predi
 have not survived -- is the durable record.
 
 Reads the un-suffixed files plus the per-seed companions (hca_pooled_n{N}_s{5..9}.csv)
-written by run_hca_draws10.sbatch / run_hca_cadiz.sh, which raise n=25 to ten subsamples
+written by run_hca_draws10.sbatch / jobs/run_hca_cadiz.sh, which raise n=25 to ten subsamples
 to match table:hca-reg and table:ixi at the same size.
 
 Draws are counted PER MODEL, not per file. The backfill deliberately raised only the arms
@@ -64,7 +64,7 @@ data = {}
 for n in SIZES:
     files = [os.path.join(D, f'hca_pooled_n{n}.csv')]
     files += [os.path.join(D, f'hca_pooled_n{n}_s{s}.csv') for s in range(5, 10)]
-    # The three volume arms at n=50 were backfilled separately (run_hca_n50vol.sh),
+    # The three volume arms at n=50 were backfilled separately (jobs/run_hca_n50vol.sh),
     # under their own suffix so they could not race the five feature arms the SLURM
     # array was writing to _s{5..9} at the same size.
     files += [os.path.join(D, f'hca_pooled_n{n}_vol_s{s}.csv') for s in range(5, 10)]
