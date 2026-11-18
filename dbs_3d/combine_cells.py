@@ -1,9 +1,4 @@
-"""Combine the per-cell worker outputs and run the five-test battery.
-
-Descriptive marginals use all 24 cells; the battery uses only the four
-pre-specified cells (lambda-sorted ordering, omega in {none, exp(-tau*lambda)}),
-so the family-wise null covers the space anyone would commit to in advance.
-"""
+"""Combine the per-cell worker outputs and run the five-test battery."""
 import sys, os, glob, pickle
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -45,7 +40,6 @@ print("external:"); print(piv.to_string())
 print(f"\ncorr(internal, external) over all cells = "
       f"{pearsonr(dfa.int_mean, dfa.ext_mean)[0]:+.3f}  Spearman {spearmanr(dfa.int_mean, dfa.ext_mean).statistic:+.3f}")
 
-# ---------------- the pre-specified battery ----------------
 PRE = [k for k in cells if k[0] == 'lap' and k[2] in ('none', 'lap')]
 df = pd.DataFrame([{k: cells[c][k] for k in
                     ('ordering', 'K', 'weight', 'int_mean', 'int_se', 'ext_mean', 'ext_sd', 'ens_auc')}

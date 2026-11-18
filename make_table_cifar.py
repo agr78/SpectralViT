@@ -1,22 +1,6 @@
 """Build table:cifar, the CIFAR-10/100 sample-size table.
 
-Adds the coefficient-input control that was computed with every one of these runs and never
-reported: FeatureMLP, parameter-matched to the spectral arm and trained in the same loop
-under one shared AdamW with summed losses, so the optimizer, batches and step count are
-identical and the margin cannot be a tuning artifact.
-
-The point of the column is attribution. The spatial arm changes the basis; the MLP keeps the
-basis and changes only the head. So spectral-minus-spatial is the representation and
-spectral-minus-MLP is the encoder, and on these two datasets they point opposite ways: the
-patch tokenizer is competitive or better on the PCA basis, while the MLP on the same
-components is far behind everywhere.
-
-Four blocks, two sources. The PCA blocks are the fixed-basis runs; the overlapping block-DCT
-blocks are the stride-2 tokenizer of sec:corr. PUB pins the published spatial and spectral
-AUCs so a changed run fails loudly instead of printing a new table.
-
-usage: python make_table_cifar.py [out.tex]
-"""
+usage: python make_table_cifar.py [out.tex]"""
 import os
 import sys
 
@@ -28,9 +12,6 @@ OUT = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, 'results', 'cifar
 R = os.path.join(HERE, 'results')
 TOL = 0.0015
 
-# The stride-2 patch tokenizer, run only for the overlap blocks: it is the control that
-# separates the fixed transform from the overlap, and there is no overlap to match on the
-# PCA blocks. See run note in cifar_sweep.py (CIFAR_SPAT_STRIDE).
 S2 = {'CIFAR-10, overlapping block DCT': 'cifar_ovstride2/cifar10_perseed.csv',
       'CIFAR-100, overlapping block DCT': 'cifar_ovstride2/cifar100_perseed.csv'}
 
@@ -88,9 +69,6 @@ for title, rel, pub in BLOCKS:
         arms = {'s4': g.spat_AUC, 'mlp': g.mlp_AUC, 'spec': g.spec_AUC}
         if s2 is not None:
             arms['s2'] = s2[s2.n == n].spat_AUC
-        # Bold the best and anything a paired test cannot separate from it. At the largest
-        # sizes the three tokenizers are genuinely indistinguishable, and bolding one of
-        # them alone would assert a difference the test does not support.
         best = max(arms, key=lambda k: arms[k].mean())
         bold = {k for k, v in arms.items()
                 if k == best or stats.ttest_rel(arms[best], v).pvalue >= 0.05}

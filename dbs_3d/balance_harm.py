@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)
@@ -18,14 +18,11 @@ exec(src.split("\nREG=")[0])
 t0=time.time(); log=lambda m: print(f"[{time.time()-t0:5.0f}s] {m}",flush=True)
 
 def ros(X,y,seed=0):
-    """simple resampling with replacement: draw the minority up to majority size"""
     rs=np.random.RandomState(seed); mi=np.where(y==0)[0]; ma=np.where(y==1)[0]
     if len(mi)>=len(ma) or len(mi)==0: return X,y
     add=rs.choice(mi,len(ma)-len(mi),replace=True)
     return np.vstack([X,X[add]]),np.concatenate([y,y[add]])
 def boot_fit(make,X,y,Xte,B=50,seed=0):
-    """balanced bootstrap ensemble: each member trained on an equal-size
-       with-replacement draw from each class; predictions averaged"""
     rs=np.random.RandomState(seed); mi=np.where(y==0)[0]; ma=np.where(y==1)[0]
     n=max(len(ma),2); out=[]
     for b in range(B):

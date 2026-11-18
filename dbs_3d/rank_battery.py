@@ -1,19 +1,6 @@
-"""Five-test battery with and without the rank prior, on a coherently ordered basis.
-
-Mode ordering and rank weight are varied together, because omega_i only means
-anything if rank tracks frequency:
-
-  ordering   rowmajor  the original truncation (corr(rank, lambda) = 0.70)
-             l1        isotropic, sorted by fx+fy+fz          (0.87)
-             lap       sorted by Neumann-Laplacian eigenvalue (1.00)
-
-  weight     none      omega_i = 1
-             inv       omega_i = 1/i                (the PCA form)
-             lap       omega_i = exp(-tau*lambda_i) (the Laplacian form)
-             learned   omega_i free, initialised at 1/i
-"""
+"""Five-test battery with and without the rank prior, on a coherently ordered basis."""
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
 OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
@@ -36,7 +23,6 @@ SHAPE = (BB[0].stop-BB[0].start, BB[1].stop-BB[1].start, BB[2].stop-BB[2].start)
 
 
 def make_feats(K, ordering):
-    """returns (train, test, lambda) for the chosen mode ordering"""
     if ordering == 'rowmajor':
         k = max(1, int(round(K ** (1/3)))); n = k + 1
         idx = [(a, b, c) for a in range(n) for b in range(n) for c in range(n)][:K]

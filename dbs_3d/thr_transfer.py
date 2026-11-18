@@ -1,9 +1,4 @@
-"""Why is SpectralViT's external specificity low when its external AUC is high?
-
-Specificity is set by where the threshold lands, and the threshold is calibrated
-on MSW. If CHH scores sit systematically higher or lower, the cut lands in the
-wrong place even though the ranking is fine.
-"""
+"""Relate external specificity to the transferred decision threshold."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 DATA = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
@@ -47,7 +42,6 @@ for lab, y, p, t in [('MSW  @MSW thr', bA, pr, thr), ('CHH  @MSW thr', bB, pb, t
     n0 = tn + fp
     print(f"\n{lab}: thr {t:.4f}  spec {tn/n0:.3f} ({tn}/{n0})  "
           f"balacc {balanced_accuracy_score(y,(p>=t).astype(int)):.3f}  AUC {roc_auc_score(y,p):.3f}")
-# where would the threshold have to be for CHH?
 q = np.quantile(pr, 1 - (pr >= thr).mean())
 print(f"\nMSW threshold is at MSW quantile {(pr < thr).mean():.3f}")
 print(f"the same QUANTILE applied to CHH would be thr {np.quantile(pb, (pr < thr).mean()):.4f}")

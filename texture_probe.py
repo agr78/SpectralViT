@@ -1,13 +1,5 @@
-"""Is synapse's class signal in band ENERGY rather than in coefficient values?
-
-The images are dense texture, not an object on a background. For texture the phase of a
-high-frequency coefficient is near-random across samples, so a signed coefficient carries
-little, while the POWER in a frequency band is a stable descriptor. Every basis in the
-sweep is linear in the coefficients and so cannot express |c|^2 at all -- the encoder
-would have to learn it from 25 volumes.
-
-Band energy per block: sum of c^2 over coefficients in each radial |k| shell.
-"""
+"""Test band energy against coefficient values as the class signal."""
+from paths import DATA
 import numpy as np
 from scipy import fft
 from sklearn.linear_model import LogisticRegression
@@ -16,8 +8,8 @@ from sklearn.metrics import roc_auc_score
 
 SIDE = 14
 for name in ('synapsemnist3d', 'nodulemnist3d', 'organmnist3d'):
-    path = (f'/workspace/data/medmnist/{name}.npz' if name != 'organmnist3d'
-            else '/agent-home/medmnist/organmnist3d.npz')
+    path = (f'{DATA}/medmnist/{name}.npz' if name != 'organmnist3d'
+            else f'{DATA}/medmnist/organmnist3d.npz')
     z = np.load(path); X = z['train_images'].astype(np.float32); y = z['train_labels'].ravel()
     X = (X - X.mean()) / X.std()
     ncls = len(np.unique(y))

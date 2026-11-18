@@ -1,5 +1,5 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
 OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
@@ -34,7 +34,6 @@ def oof_ext(X0,X1,y,typ,seed):
     pb,m=gfit(s2.transform(X0),s3.transform(Ca),y.astype(float),s2.transform(X1),s3.transform(Cb),
               X0.shape[1],Ca.shape[1],typ,seed)
     return roc_auc_score(y,pr),pb,m
-# ---------- the DCT-only search space: 4 cells ----------
 CELLS=[('3DDCT',K,typ) for K in (8,16) for typ in (False,True)]
 rows=[];PRED={};SEEDPB={}
 for bn,K,typ in CELLS:
@@ -53,14 +52,12 @@ df.to_csv(os.path.join(OUT,'dct_battery.csv'), index=False)
 print("\n=== DCT-only search space (4 cells), 20 seeds each ===")
 print(df.round(3).to_string(index=False))
 rng=np.random.RandomState(0); n=len(bB); n1=int(bB.sum()); n0=n-n1
-# ---------- TEST 1: family-wise null over the 4 DCT cells ----------
 ks=list(PRED); R=np.array([rankdata(PRED[k]) for k in ks])
 auc=lambda y:(R@y-n1*(n1+1)/2)/(n1*n0)
 obs=auc(bB); mx=np.array([auc(bB[rng.permutation(n)]).max() for _ in range(20000)])
 i=int(obs.argmax())
 print(f"\nTEST 1 FAMILY-WISE NULL ({len(ks)} cells)")
 print(f"  best external {obs[i]:.3f} (K={ks[i][0]} {ks[i][1]})   chance {mx.mean():.3f} (95th {np.percentile(mx,95):.3f})   p = {(mx>=obs[i]).mean():.4f}")
-# ---------- TEST 2: pre-specified on seed-averaged internal ----------
 b=df.iloc[0]; key=(int(b['K']),b['variant']); pe=PRED[key]; ae=roc_auc_score(bB,pe)
 nl=np.array([roc_auc_score(bB[rng.permutation(n)],pe) for _ in range(20000)])
 bs=[roc_auc_score(bB[ix],pe[ix]) for ix in rng.randint(0,n,(20000,n)) if len(np.unique(bB[ix]))>1]
@@ -70,11 +67,9 @@ print(f"  external per-seed {b['ext_mean']:.3f} +- {b['ext_sd']:.3f}")
 print(f"  seed-ensembled external {ae:.3f}   p = {(nl>=ae).mean():.4f}   bootstrap CI [{np.percentile(bs,2.5):.3f},{np.percentile(bs,97.5):.3f}]")
 d=df.iloc[0]['int_mean']-df.iloc[1]['int_mean']; se=np.hypot(df.iloc[0]['int_se'],df.iloc[1]['int_se'])
 print(f"  margin over 2nd ({int(df.iloc[1]['K'])} {df.iloc[1]['variant']}): {d:+.3f} +- {se:.3f} -> {'separated' if d>2*se else 'NOT separated'}")
-# ---------- TEST 3: seed stability (already measured) ----------
 print(f"\nTEST 3 SEED STABILITY ({NS} inits, winning cell)")
 ee=np.array([roc_auc_score(bB,p) for p in SEEDPB[key]])
 print(f"  external {ee.mean():.3f} +- {ee.std():.3f}   min {ee.min():.3f}  max {ee.max():.3f}   below 0.5 in {(ee<0.5).sum()}/{NS}")
-# ---------- TEST 4: internal permutation on the winning cell ----------
 X0,X1=basis3(VA,'3DDCT',int(b['K'])),basis3(VB,'3DDCT',int(b['K']))
 typ = b['variant'].startswith('typ')
 obs_int=df.iloc[0]['int_mean']
@@ -87,7 +82,6 @@ for j in range(200):
 null=np.array(null)
 print(f"\nTEST 4 INTERNAL PERMUTATION")
 print(f"  seed-averaged internal {obs_int:.3f}   null {null.mean():.3f} +- {null.std():.3f}   p = {(null>=obs_int).mean():.4f}")
-# ---------- TEST 5: imaging ablation ----------
 s2=StandardScaler().fit(X0); s3=StandardScaler().fit(Ca); ZB,DB=s2.transform(X1),s3.transform(Cb)
 res={k:[] for k in ['intact','img0','imgshuf','cov0']}
 for sd in range(5):

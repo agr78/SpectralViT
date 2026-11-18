@@ -1,20 +1,4 @@
-"""Which individual spectral modes carry outcome signal that is not site signal?
-
-The 16-mode feature vector identifies the site at AUC 0.940 while predicting
-outcome externally at 0.729. If the two live in different modes, selecting on
-site-invariance should retain the outcome signal and drop the site signal.
-
-Per mode, two scores:
-  outcome AUC   |AUC - 0.5| against responder status, MSW only
-  site AUC      |AUC - 0.5| against MSW-vs-CHH membership
-
-Neither uses a CHH outcome label, so selecting on both is leak-free with respect
-to the external endpoint. Site membership is known for every scan by
-construction.
-
-A larger mode budget is scanned than the K=16 used so far, since restricting to
-16 may simply have kept the site-dominated ones.
-"""
+"""Which individual spectral modes carry outcome signal that is not site signal?"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -43,8 +27,8 @@ AB = np.vstack([A, B])
 
 rows = []
 for j in range(KBIG):
-    oa = roc_auc_score(bA, A[:, j])                 # MSW outcome only
-    sa = roc_auc_score(site, AB[:, j])              # site membership only
+    oa = roc_auc_score(bA, A[:, j])
+    sa = roc_auc_score(site, AB[:, j])
     rows.append(dict(mode=j, fx=IDX[j][0], fy=IDX[j][1], fz=IDX[j][2], lam=lam[j],
                      outcome=abs(oa - 0.5), site=abs(sa - 0.5),
                      outcome_raw=oa, site_raw=sa))
@@ -65,7 +49,6 @@ print("  (strongly positive would mean outcome and site are carried by the same 
 
 
 def evaluate(cols, label):
-    """logistic probe on a mode subset: internal OOF and external"""
     Xa, Xb = A[:, cols], B[:, cols]
     s = StandardScaler().fit(Xa); Za, Zb = s.transform(Xa), s.transform(Xb)
     pr = np.full(len(bA), np.nan)
@@ -74,7 +57,6 @@ def evaluate(cols, label):
         pr[va] = m.decision_function(Za[va])
     m = LogisticRegression(C=1.0, max_iter=3000, class_weight='balanced').fit(Za, bA)
     pb = m.decision_function(Zb)
-    # site separability of this subset
     sa = []
     Z = np.vstack([Za, Zb])
     for tr, va in StratifiedKFold(5, shuffle=True, random_state=0).split(Z, site):

@@ -1,12 +1,7 @@
 """Convert the HCA age table into a participants.tsv the image loader can use.
 
-The source has one row per subject-event. Only V1/V2/V3 are in-person MR visits; F*, CR
-and AF* are surveys with no imaging, so they are dropped. Ages of "90 or older" are
-censored at 90 and flagged, and the binary label is split at the cohort median rather than
-at a threshold inherited from a young-adult cohort.
-
-usage: python hca_make_participants.py <raw.tsv> [out.tsv]
-"""
+usage: python hca_make_participants.py <raw.tsv> [out.tsv]"""
+from paths import RAW
 import sys, os
 import pandas as pd, numpy as np
 
@@ -45,10 +40,8 @@ print(f'\nage range {first["age"].min():.0f}-{first["age"].max():.0f}, median {m
 print(first['AgeGroup'].value_counts().to_string())
 print(f'\nwrote {out} ({len(first)} rows)')
 
-# coverage against the images themselves: the only check that answers
-# "do we have an age for every subject we can actually load?"
 IMG = os.environ.get('HCA_IMG_DIR',
-                     '/autofs/vast/lemon/data_instantsurfer_uncurated/ahcp_data')
+                     f'{RAW}/ahcp_data')
 if os.path.isdir(IMG):
     import re
     dirs = [e for e in os.listdir(IMG) if os.path.isdir(os.path.join(IMG, e))]

@@ -1,17 +1,6 @@
-"""Leave-one-out internal estimate, to test whether 4-fold CV is the reason
-test 4 fails.
+"""Leave-one-out internal estimate, as an alternative to k-fold cross-validation.
 
-4-fold CV on 59 patients trains each model on 44 with 3 non-responders, while
-the external model trains on all 59 with 4. At this scale that gap is large, so
-the out-of-fold estimate may be pessimistic rather than the external estimate
-optimistic -- which would explain external 0.799 > internal 0.694.
-
-Leave-one-out trains on 58 patients per fold, matching the external model much
-more closely. If the internal estimate rises toward the external one, 4-fold was
-the problem; if it stays at ~0.69, the internal effect really is weak.
-
-usage: loo_internal.py <ordering> <K> <weight> [nseeds]
-"""
+usage: loo_internal.py <ordering> <K> <weight> [nseeds]"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)

@@ -1,25 +1,7 @@
-"""Does the HCA small-n budget overtrain, and does the budget convention matter?
+"""Test the HCA small-sample epoch budget and the budget convention.
 
-hca_regress.py fixes the gradient-step budget at ~10,000 for every sample size, which at
-n=25 means 2,000 epochs over 20 subjects. The conventional alternative fixes epochs and
-lets steps scale with n. These are not nested: OneCycleLR anneals over the whole budget,
-so a 500-epoch run is a different schedule rather than a prefix of a 2,000-epoch one, and
-the two have to be run separately.
-
-The curve is traced on a validation split carved from the TRAINING fold, never on the
-test fold. Watching test error over training would leak test information into the choice
-of schedule even though no model is fit to it, and the minimum of such a curve is not
-attainable without peeking, so it must not be computed or reported.
-
-Every outer fold of every subsample draw trains the proposed arm and logistic regression
-under both budgets, recording train and validation MAE throughout, so that two questions
-can be answered with an error bar: whether held-out error degrades late (overtraining),
-and whether the two budgets land in materially different places (whether the convention
-matters). A single fold at n=25 holds five test subjects, which is far too noisy to read.
-
-env: HCA_PREFIX HCA_N HCA_SEEDS HCA_EVERY HCA_OUT
-usage: python hca_converge.py
-"""
+usage: python hca_converge.py"""
+from paths import DATA
 import os, sys, time
 import numpy as np, pandas as pd, torch, torch.nn as nn, torch.optim as optim
 from scipy import fft
@@ -31,10 +13,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from networks import SpectralViT, LogisticRegression
 
 PREFIX = os.environ.get('HCA_PREFIX',
-                        os.path.expanduser('~/spacelink/aHCP/derivatives/hca_vols_96'))
+                        f'{DATA}/aHCP/derivatives/hca_vols_96')
 N = int(os.environ.get('HCA_N', 25))
 SEEDS = int(os.environ.get('HCA_SEEDS', 5))
-EVERY = int(os.environ.get('HCA_EVERY', 25))      # evaluate every EVERY epochs
+EVERY = int(os.environ.get('HCA_EVERY', 25))
 OUT = os.environ.get('HCA_OUT', os.path.join(os.path.dirname(os.path.abspath(__file__)),
                                              'results', 'converge'))
 GRID, FREQ, BATCH, LR = 4, 4, 4, 1e-3
@@ -69,7 +51,6 @@ def rank_perm():
     return np.array([b * nf + order[r] for r in range(nf) for b in range(nb)])
 
 
-
 def build(kind):
     if kind == 'spectral':
         return SpectralViT(n_inputs=4096, patch_size=64, embed_dim=32, n_layers=2,
@@ -94,17 +75,15 @@ for seed in range(SEEDS):
     kf = StratifiedKFold(n_splits=5, shuffle=True, random_state=seed)
 
     for fold, (tr, _te) in enumerate(kf.split(Fs, y)):
-        # The test fold is discarded here. Fit on 80% of the training fold, trace the
-        # curve on the remaining 20%, so nothing about the schedule is chosen on test.
         cut = max(2, int(0.2 * len(tr)))
         va, fit = tr[:cut], tr[cut:]
         mu, sd = Fs[fit].mean(0, keepdim=True), Fs[fit].std(0, keepdim=True) + 1e-6
         F = (Fs - mu) / sd
         amu, asd = float(a[fit].mean()), float(a[fit].std() + 1e-8)
         for kind in ('spectral', 'logreg'):
-            for epochs in (2000, 500):   # equal-step budget vs conventional fixed epochs
+            for epochs in (2000, 500):
                 torch.manual_seed(0)
-                m = build(kind).to(dev)  # both arms already end in a single-unit head
+                m = build(kind).to(dev)
                 ld = DataLoader(TensorDataset(F[fit], torch.tensor((a[fit] - amu) / asd)),
                                 batch_size=BATCH, shuffle=True)
                 opt = optim.AdamW(m.parameters(), lr=LR,

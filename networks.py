@@ -1,3 +1,5 @@
+"""Spectral and spatial transformer models, their convolutional, Swin and linear baselines, the
+clinical-fusion wrappers, and the PCA, Fourier and Laplacian tokenizers."""
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -24,9 +26,9 @@ class SpectralViT(nn.Module):
         use_layer_norm=True,    
         learnable_rank_weights=True,
         use_sigmoid=False,
-        use_linear_residual=False,   # DBS: linear path on the raw token vector
-        pos_embed_init='randn',      # 'zeros' for the DBS configuration
-        batch_first=False            # DBS uses batch-first tensors
+        use_linear_residual=False,
+        pos_embed_init='randn',
+        batch_first=False
     ):
         super().__init__()
         self.patch_size = patch_size
@@ -44,7 +46,6 @@ class SpectralViT(nn.Module):
         else:
             self.sampling_indices = None
 
-        # 1. Rank weights logic (1/f)
         if use_rank_weights:
             ranks = torch.arange(1, n_inputs + 1, dtype=torch.float32)
             if learnable_rank_weights:
@@ -52,7 +53,6 @@ class SpectralViT(nn.Module):
             else:
                 self.register_buffer('rank_weights', 1.0 / ranks)
 
-        # 2. Projection Logic
         self.d_model = embed_dim if (use_input_proj or use_mode_weights) else 1
         
         if self.use_mode_weights:
@@ -62,14 +62,12 @@ class SpectralViT(nn.Module):
         else:
             self.input_proj = nn.Identity()
 
-        # 3. Positional Embedding - Force (Seq, 1, Dim) for correct broadcasting
         if self.use_pos_embed:
             if pos_embed_init == 'zeros':
                 self.pos_embed = nn.Parameter(torch.zeros(n_inputs, 1, self.d_model))
             else:
                 self.pos_embed = nn.Parameter(torch.randn(n_inputs, 1, self.d_model) * 0.02)
 
-        # 4. Transformer
         encoder_layer = nn.TransformerEncoderLayer(
             d_model=self.d_model, nhead=n_heads,
             dim_feedforward=embed_dim * 2, dropout=0.1,
@@ -77,7 +75,6 @@ class SpectralViT(nn.Module):
         )
         self.transformer = nn.TransformerEncoder(encoder_layer, num_layers=n_layers)
 
-        # 5. Head
         head_in = self.d_model if pooling == 'mean' else (self.d_model * n_inputs)
         if use_layer_norm:
             self.mlp_head = nn.Sequential(nn.LayerNorm(head_in), nn.Linear(head_in, 1))
@@ -92,45 +89,32 @@ class SpectralViT(nn.Module):
         b = x.shape[0]
         raw = x
 
-        # A. Optional Sampling
         if self.sampling_indices is not None:
             x = x.view(b, -1)[:, self.sampling_indices]
 
-        # B. Rank Weights
         if self.use_rank_weights:
-            # Slice rank_weights in case input x is shorter than n_inputs
             x = x * self.rank_weights[:x.size(1)]
         
-        # C. Projection Branching
         if self.use_mode_weights:
-            # [Batch, Seq] -> [Batch, Seq, 1]
             x = x.unsqueeze(-1) 
-            # [Batch, Seq, 1] * [1, Seq, Dim] -> [Batch, Seq, Dim]
             x = x * self.mode_weights[:x.size(1), :].unsqueeze(0)
-            # -> [Seq, Batch, Dim]
             x = x.transpose(0, 1)
         else:
-            # [Batch, Seq] -> [Batch, Seq, Patch]
             x = x.view(b, -1, self.patch_size)
-            # [Batch, Seq, Dim] -> [Seq, Batch, Dim]
             x = self.input_proj(x)
             if not self.batch_first: x = x.transpose(0, 1)
         
-        # D. Position Addition (Safely Broadcasted)
         if self.use_pos_embed:
             if self.batch_first:
                 x = x + self.pos_embed[:x.size(1), 0, :].unsqueeze(0)
             else:
-                # Ensure pos_embed matches sequence length and broadcasts over batch (dim 1)
                 x = x + self.pos_embed[:x.size(0), :, :]
             
         x = self.transformer(x)
         
-        # E. Pooling
         if self.pooling == 'mean':
             x = x.mean(dim=1 if self.batch_first else 0)
         else:
-            # Result: [Batch, Seq * Dim]
             x = x.transpose(0, 1).flatten(1)
             
         logit = self.mlp_head(x).squeeze(-1)
@@ -151,7 +135,6 @@ class SpatialViT(nn.Module):
         self.use_cls_token = use_cls_token
         self.use_sigmoid = use_sigmoid
         
-        # Calculate patches based on init size
         if is_2d:
             self.n_patches = (actual_size // patch_size) ** 2
             proj_in = patch_size ** 2
@@ -161,7 +144,6 @@ class SpatialViT(nn.Module):
 
         self.proj = nn.Linear(proj_in, embed_dim)
         
-        # Positional Embedding (Seq, 1, Dim)
         pos_len = self.n_patches + 1 if use_cls_token else self.n_patches
         self.pos_embed = nn.Parameter(torch.randn(pos_len, 1, embed_dim) * 0.02)
 
@@ -182,29 +164,21 @@ class SpatialViT(nn.Module):
         b = x.shape[0]
         p = self.patch_size
         
-        # 1. Dynamic Unfolding
         if self.is_2d:
             x = x.unfold(2, p, p).unfold(3, p, p)
         else:
             x = x.unfold(2, p, p).unfold(3, p, p).unfold(4, p, p)
 
-        # 2. View using -1 to handle any input volume size dynamically
-        # Shape: [Batch, n_patches, proj_in]
         x = x.contiguous().view(b, -1, self.proj.in_features)
-        x = self.proj(x).transpose(0, 1) # [Seq, Batch, Dim]
+        x = self.proj(x).transpose(0, 1)
 
-        # 3. CLS Token
         if self.use_cls_token:
             cls_tokens = self.cls_token.expand(1, b, -1)
             x = torch.cat((cls_tokens, x), dim=0)
 
-        # 4. DYNAMIC POSITION INTERPOLATION (The Fix)
         if x.size(0) != self.pos_embed.size(0):
-            # [Old_Seq, 1, Dim] -> [1, Dim, Old_Seq]
             pe = self.pos_embed.permute(1, 2, 0)
-            # Interpolate to New_Seq
             pe = F.interpolate(pe, size=x.size(0), mode='linear', align_corners=False)
-            # -> [New_Seq, 1, Dim]
             x = x + pe.permute(2, 0, 1)
         else:
             x = x + self.pos_embed
@@ -221,7 +195,6 @@ class SpatialViT(nn.Module):
 
 
 class ClinicalTransformer(nn.Module):
-    """DBS Logic: Each feature = One token."""
     def __init__(self, n_inputs, embed_dim=32, n_heads=4, n_layers=2):
         super().__init__()
         self.embedding = nn.Linear(1, embed_dim)
@@ -279,7 +252,6 @@ class AttentionBlock(nn.Module):
         self.is_spatial_2d = is_spatial_2d
         
         if not is_spatial_2d:
-            # ORIGINAL 3D GATE
             self.W_g = nn.Sequential(
                 nn.Conv3d(F_g, F_int, kernel_size=1, stride=1, padding=0, bias=True),
                 nn.BatchNorm3d(F_int)
@@ -295,20 +267,17 @@ class AttentionBlock(nn.Module):
             )
             self.relu = nn.ReLU(inplace=True)
         else:
-            # EXACT FASTUNET SPATIAL ATTENTION
             self.conv = nn.Conv2d(2, 1, kernel_size=7, padding=3, bias=False)
             self.sigmoid = nn.Sigmoid()
 
     def forward(self, g, x=None):
         if self.is_spatial_2d:
-            # Logic: x * (1 + att)
             avg_out = torch.mean(g, dim=1, keepdim=True)
             max_out, _ = torch.max(g, dim=1, keepdim=True)
             att = torch.cat([avg_out, max_out], dim=1)
             att = self.sigmoid(self.conv(att))
             return g * (1 + att)
         else:
-            # Logic: x * psi
             g1 = self.W_g(g)
             x1 = self.W_x(x)
             psi = self.relu(g1 + x1)
@@ -322,7 +291,6 @@ class AttentionUNet(nn.Module):
         self.use_sigmoid = use_sigmoid
 
         if not fast_mode:
-            # --- ORIGINAL 3D MODEL ---
             self.conv1 = nn.Conv3d(in_channels, base_channels, kernel_size=3, padding=1, stride=2) 
             self.conv2 = nn.Conv3d(base_channels, base_channels*2, kernel_size=3, padding=1, stride=2) 
             self.conv3 = nn.Conv3d(base_channels*2, base_channels*4, kernel_size=3, padding=1, stride=2) 
@@ -330,17 +298,16 @@ class AttentionUNet(nn.Module):
             self.pool = nn.AdaptiveAvgPool3d(1)
             self.classifier = nn.Linear(base_channels*4, 1)
         else:
-            # --- EXACT FASTUNET REPLICA ---
             def conv_block(in_c, out_c):
                 return nn.Sequential(
                     nn.Conv2d(in_c, out_c, 3, padding=1, bias=False),
                     nn.BatchNorm2d(out_c),
                     nn.ReLU(inplace=True)
                 )
-            self.enc1 = conv_block(in_channels, base_channels)    # 16
-            self.enc2 = conv_block(base_channels, base_channels*2) # 32
+            self.enc1 = conv_block(in_channels, base_channels)
+            self.enc2 = conv_block(base_channels, base_channels*2)
             self.pool2d = nn.MaxPool2d(2)
-            self.bottleneck = conv_block(base_channels*2, base_channels*4) # 64
+            self.bottleneck = conv_block(base_channels*2, base_channels*4)
             
             self.attn = AttentionBlock(is_spatial_2d=True)
             self.gmp = nn.AdaptiveMaxPool2d(1)
@@ -354,7 +321,6 @@ class AttentionUNet(nn.Module):
 
     def forward(self, x, return_logit=False):
         if self.fast_mode:
-            # Replicating the 2-pool logic of FastUNet
             if x.dim() == 5: x = x.mean(dim=2)
             x1 = self.enc1(x)
             x2 = self.enc2(self.pool2d(x1))
@@ -375,7 +341,6 @@ class AttentionUNet(nn.Module):
             return torch.sigmoid(logit)
         return logit
 
-# Shifted window (Swin) transformer
 class SwinBlock(nn.Module):
     def __init__(self, dim, input_resolution, num_heads, window_size=6, shift_size=0):
         super().__init__()
@@ -394,14 +359,11 @@ class SwinBlock(nn.Module):
         if self.shift_size > 0:
             x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
 
-        # Window Partitioning
         x = x.view(B, H // self.window_size, self.window_size, W // self.window_size, self.window_size, C)
         windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, self.window_size * self.window_size, C)
 
-        # Attention
         attn_windows = self.attn(windows.transpose(0, 1)).transpose(0, 1)
 
-        # Merge Windows
         x = attn_windows.view(B, H // self.window_size, W // self.window_size, self.window_size, self.window_size, C)
         x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, H, W, C)
 
@@ -422,7 +384,6 @@ class SwinTransformer(nn.Module):
         self.head = nn.Linear(embed_dim, 1)
 
     def forward(self, x):
-        # Collapse 3D to 2D for Swin blocks
         if x.dim() == 5: x = x.mean(dim=2) 
         x = self.patch_embed(x).flatten(2).transpose(1, 2)
         for layer in self.layers:
@@ -444,7 +405,6 @@ def fourier_tokenize(img_size, img, k):
     kspace_recon = np.zeros_like(kspace_flat, dtype=complex)
     kspace_recon[idx[:k]] = kspace_flat[idx[:k]]
     img_recon = np.real(ifft2(ifftshift(kspace_recon.reshape(img_size, img_size))))
-    # Magnitude tokens provide translation invariance
     return np.abs(kspace_flat[idx[:k]]), img_recon
 
 def laplacian_tokenize(img_size, img_clean, img_noisy, k, threshold=0.03, topo_labels=None):
@@ -482,13 +442,6 @@ class LogisticRegression(nn.Module):
 
 class MultiLayerPerceptron(nn.Module):
     def __init__(self, input_dim: int, hidden_dim: int):
-        """
-        A simple 2-layer Multi-Layer Perceptron (MLP).
-        
-        Args:
-            input_dim (int): The number of input features (formerly N_COMP).
-            hidden_dim (int): The number of hidden units (formerly MLP_HIDDEN_DIM).
-        """
         super(MultiLayerPerceptron, self).__init__()
         
         self.network = nn.Sequential(
@@ -497,22 +450,9 @@ class MultiLayerPerceptron(nn.Module):
             nn.Linear(hidden_dim, 1)
         )
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Defines the forward pass of the MLP.
-        """
         return self.network(x)
     
 class MultiClassLinearHead(nn.Module):
-    """Multinomial logistic regression on the same coefficients the spectral arm receives.
-
-    LogisticRegression above returns [B, 1] and is the binary arm used by the MRI sweeps;
-    the multi-class benchmarks (MNIST, CIFAR, LFW, ModelNet40) need [B, C]. Kept as a
-    separate class so no existing call or stored result changes.
-
-    This is the control the reviewers ask for on every benchmark: with the softmax it is
-    exactly multinomial logistic regression on the coefficients, so a margin over it is
-    attributable to the encoder rather than to the basis.
-    """
     def __init__(self, input_dim: int, num_classes: int):
         super().__init__()
         self.linear = nn.Linear(input_dim, num_classes)
@@ -522,13 +462,6 @@ class MultiClassLinearHead(nn.Module):
 
 
 class MultiClassSpectralViT(nn.Module):
-    """Multi-class spectral ViT.
-
-    use_rank_weights and use_mode_weights are the two mechanisms SpectralViT carries and
-    this variant originally did not: the 1/i variance hierarchy, and the component-wise
-    embedding W_phi,i that sec:ca describes (cost_embed = n * d_e). Both default to False so
-    every existing call, and every result already computed with them, is unchanged.
-    """
     def __init__(self, n_inputs, chunk_size=4, num_classes=10, embed_dim=128, n_heads=4, n_layers=2,
                  use_rank_weights=False, learnable_rank_weights=True, use_mode_weights=False,
                  rank_groups=None, use_pos_embed=True):
@@ -536,19 +469,8 @@ class MultiClassSpectralViT(nn.Module):
         self.chunk_size = chunk_size
         self.use_rank_weights = use_rank_weights
         self.use_mode_weights = use_mode_weights
-        # The positional embedding was unconditional here, so every experiment on this class
-        # carried one whether or not its token index denoted a position. Under
-        # use_mode_weights the index is a COEFFICIENT rank (n_tokens == n_inputs), not a
-        # location, and a learned per-index code then re-learns what the rank weight already
-        # states. Defaults True, so every result already computed is unchanged.
         self.use_pos_embed = use_pos_embed
         if use_rank_weights:
-            # rank_groups gives the length of each basis when several are concatenated, so
-            # the 1/i profile restarts per basis. A single profile across a concatenation
-            # would assert that every coefficient of the first basis outranks every
-            # coefficient of the second, which is not a statement either hierarchy makes:
-            # PCA is ordered by variance and the DCT by frequency, and the two orderings
-            # are not commensurable. None keeps the original single-profile behaviour.
             if rank_groups:
                 assert sum(rank_groups) == n_inputs, (rank_groups, n_inputs)
                 ranks = torch.cat([torch.arange(1, g + 1, dtype=torch.float32)
@@ -560,8 +482,6 @@ class MultiClassSpectralViT(nn.Module):
             else:
                 self.register_buffer('rank_weights', 1.0 / ranks)
         if use_mode_weights:
-            # One embedding vector per coefficient, so rank i keeps its own weights rather
-            # than sharing a projection with every other position-i-within-chunk.
             self.n_tokens = n_inputs
             self.mode_weights = nn.Parameter(torch.randn(n_inputs, embed_dim) * 0.02)
         else:
@@ -584,21 +504,11 @@ class MultiClassSpectralViT(nn.Module):
             x = self.proj(x)
         if self.use_pos_embed:
             x = x + self.pos_embed
-        x = x.permute(1, 0, 2) # (Seq, Batch, Dim) for legacy
+        x = x.permute(1, 0, 2)
         x = self.transformer(x)
         return self.classifier(x.mean(dim=0))
 
 class MultiClassSpatialViT(nn.Module):
-    """Patch-tokenizing baseline. volumetric=True takes (B,C,D,H,W) and cubic patches,
-    keeping the encoder identical so a 3D comparison stays parameter matched the way the
-    2D ones are. Defaults to 2D, so existing calls are unchanged.
-
-    stride < patch_size makes the patches OVERLAP. This is the control the overlapping
-    block-DCT tokenizer of sec:corr needs: that arm takes a fixed 4x4 cosine transform at
-    stride two and is compared against patches at stride four, so stride and basis vary
-    together and the gain cannot be attributed to either. At the same stride the two differ
-    only in whether the per-patch map is fixed-then-projected or learned outright. Defaults
-    to patch_size, which is the critically sampled tokenizer every stored result used."""
     def __init__(self, num_classes=10, size=28, patch_size=4, in_channels=1, embed_dim=128, n_heads=4, n_layers=2,
                  volumetric=False, stride=None):
         super().__init__()
@@ -615,8 +525,6 @@ class MultiClassSpatialViT(nn.Module):
 
     def forward(self, x):
         b, p, st = x.shape[0], self.patch_size, self.stride
-        # permute so a token is one spatial location across all channels; without this
-        # a token mixes several spatial patches of a single channel whenever c > 1.
         if self.volumetric:
             x = x.unfold(2, p, st).unfold(3, p, st).unfold(4, p, st)
             x = x.permute(0, 2, 3, 4, 1, 5, 6, 7)

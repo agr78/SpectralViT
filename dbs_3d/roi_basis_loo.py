@@ -1,14 +1,4 @@
-"""ROI construction x basis, LOO internal on the corrected 66-patient cohort.
-
-Restoring the 7 edge-clipped patients dropped internal LOO from 0.821 to 0.578
-for the higher-side DCT model. This asks whether any ROI construction or basis
-handles those cases better -- i.e. whether the internal/external correspondence
-survives anywhere.
-
-ROI:    higher, both, mean, diff, and the gradient magnitude of each
-bases:  3D DCT, |FFT|, log|FFT|, PCA
-LOO throughout, since 4-fold is unusable at 5 non-responders.
-"""
+"""ROI construction against basis, under leave-one-out internal validation."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d')

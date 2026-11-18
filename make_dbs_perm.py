@@ -1,17 +1,6 @@
 """Exact permutation p-values for table:dbs, and the paired tests quoted in sec:results.
 
-With three non-responders among 37 patients there are only C(37,3) = 7770 possible label
-assignments, so the permutation test is enumerated in full rather than sampled. That makes
-every p-value deterministic and removes the Monte Carlo error in the sampled values the
-prose previously carried (0.043, 0.050, 0.185 against the exact 0.040, 0.052, 0.188), and
-it covers all seven models, where stored permutation chunks exist for only four.
-
-One-sided: the fraction of assignments whose AUC is at least the observed one. Capacity is
-the published one-standard-error selection over K in {16, 32}, taken from make_table_dbs.py
-so the two cannot diverge.
-
-usage: python make_dbs_perm.py
-"""
+usage: python make_dbs_perm.py"""
 import itertools
 import os
 
@@ -25,7 +14,6 @@ _g = {'__name__': 'dbs', '__file__': os.path.join(HERE, 'make_table_dbs.py')}
 exec(compile(_src.split('def table(grid, rule):')[0], 'dbs', 'exec'), _g)
 C, bA, bB, sel, MODELS, lab = _g['C'], _g['bA'], _g['bB'], _g['sel'], _g['MODELS'], _g['lab']
 
-# table:dbs, as published.
 PUB = {'Clinical': 0.188, 'Clinical Transformer': 0.236, 'Spectral LR': 0.074,
        'Spectral MLP': 0.203, 'Spatial ViT': 0.052, 'Attention UNet': 0.729,
        'SpectralViT': 0.040}
@@ -56,12 +44,10 @@ for m in MODELS:
 
 bad_pair = []
 
-# Paired comparisons against the proposed model, and the counterfactual capacity that
-# shows the one significant result is an artifact of an uninformative selection.
 PROP = 'SpectralViT'
 PUB_PAIR = {'Clinical': 0.231, 'Clinical Transformer': 0.197, 'Spectral LR': 0.369,
             'Spectral MLP': 0.184, 'Spatial ViT': 0.459, 'Attention UNet': 0.046}
-PUB_UNET_ALT = (0.686, 0.294)        # the U-net at the grid's other capacity
+PUB_UNET_ALT = (0.686, 0.294)
 
 sp = C[(PROP, sel(PROP, [16, 32], '1SE'))]['pb']
 

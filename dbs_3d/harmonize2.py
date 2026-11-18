@@ -1,22 +1,4 @@
-"""Harmonization that acts on the joint structure, not just the marginals.
-
-The imaging features identify the site at AUC 0.940 while predicting outcome
-externally at 0.729 -- site is the dominant axis. Per-feature corrections
-(z-score, ComBat, quantile) leave the correlation structure untouched, which is
-where site can hide. These act on second-order structure instead:
-
-  coral      whiten CHH by its own covariance, recolour with MSW's
-  sa         subspace alignment: rotate CHH's principal subspace onto MSW's
-  coral_reg  CORAL with shrinkage, for the n < p regime
-  whiten     whiten both sites independently (destroys shared scale too)
-
-Each is scored on two axes:
-  site-AUC   how separable the sites remain  (target 0.5)
-  ext-AUC    outcome performance on CHH      (target: beat clinical 0.725)
-
-No outcome labels are used by any harmonization. CHH inputs are used, which is
-transductive but standard for domain adaptation, and is stated as such.
-"""
+"""Harmonization that acts on the joint structure, not just the marginals."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -64,7 +46,7 @@ def harm(A, B, mode):
         W = np.real(sqrtm(np.linalg.inv(np.real(sqrtm(Cb_)))) if False else
                     np.real(sqrtm(Ca_)) @ np.linalg.inv(np.real(sqrtm(Cb_))))
         return A, (B - mb) @ W.T + ma
-    if mode == 'sa':                       # subspace alignment
+    if mode == 'sa':
         from sklearn.decomposition import PCA
         d = min(8, A.shape[1] - 1)
         pa = PCA(d).fit(A - A.mean(0)); pb = PCA(d).fit(B - B.mean(0))

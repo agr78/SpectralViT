@@ -1,3 +1,5 @@
+"""Build the MSW and CHH QSM datasets for DBS response prediction, pairing clinical covariate
+vectors and responder labels with staged NIfTI volumes and ROI masks."""
 import os
 import tempfile
 import shutil
@@ -18,7 +20,6 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
     print(f"Preparing {source_type} dataset (Forced 6-dim alignment) {'[DEBUG MODE]' if debug else ''}")
     print(f"{'='*60}")
     
-    # 1. PRE-FLIGHT LIVE STATS
     print(f"Pre-flight check: Validating {source_type} CSV mapping...")
     try:
         if source_type.upper() == 'CHH':
@@ -40,13 +41,9 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
     except Exception as e:
         print(f"  ⚠️ Pre-flight mean calculation failed: {e}")
 
-    # 2. DIRECTORY SETUP & CHH INJECTION LOGIC
     forced_unlabeled_ids = set()
     resample_fn = None
 
-    # QSM_Dataset returns straight from the cache, so the raw NIfTI trees are only
-    # needed to enumerate subject ids. Take those from the cache when it is present
-    # and skip the staging below, which would fail on a missing nii_path.
     cached_ids = None
     if load_cache and cache_path and os.path.exists(cache_path):
         _cached = torch.load(cache_path, map_location='cpu', weights_only=False)
@@ -55,7 +52,6 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
         del _cached
     
     if cached_ids is not None:
-        # Nothing downstream reads these when loading from cache.
         final_nii_dir, final_seg_dir = nii_path, seg_path
         if source_type.upper() == 'CHH':
             resample_fn = fast_resample_sharp
@@ -63,7 +59,6 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
         resample_fn = fast_resample_sharp 
         final_nii_dir, final_seg_dir = tempfile.mkdtemp(), tempfile.mkdtemp()
         
-        # --- Process labeled path (ROI-Optional) ---
         all_files = [f for f in os.listdir(nii_path) if f.endswith('.nii.gz') and f[0].isdigit()]
         for f in all_files:
             try:
@@ -76,7 +71,6 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
                             shutil.copyfileobj(f_in, f_out)
             except Exception: continue
 
-        # --- GENERATE CONSENSUS BBOX FROM LABELED DATA ---
         mean_min, mean_max = None, None
         existing_masks = [os.path.join(final_seg_dir, f) for f in os.listdir(final_seg_dir) if f.endswith('.nii.gz')]
         
@@ -96,7 +90,6 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
             except Exception as e:
                 print(f"Warning: BBox calculation failed: {e}")
 
-        # --- Process Unlabeled Path with BBox Mask Injection ---
         print(f"Checking unlabeled path: {unlabeled_nii_path} (Exists: {os.path.exists(unlabeled_nii_path) if unlabeled_nii_path else False})")
         if unlabeled_nii_path and os.path.exists(unlabeled_nii_path):
             extra_files = [f for f in os.listdir(unlabeled_nii_path) if f.endswith('.nii.gz')]
@@ -111,11 +104,9 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
                             img_src = os.path.join(unlabeled_nii_path, f)
                             os.symlink(img_src, target_link)
                             
-                            # Inject consensus mask for the unlabeled subject
                             if mean_min is not None:
                                 unl_img = nib.load(img_src)
                                 box_mask = np.zeros(unl_img.shape, dtype=np.float32)
-                                # Clamp indices to actual image dimensions
                                 z_max = min(mean_max[2], unl_img.shape[2])
                                 box_mask[mean_min[0]:mean_max[0], mean_min[1]:mean_max[1], mean_min[2]:z_max] = 1.0
                                 
@@ -125,7 +116,6 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
     else:
         final_nii_dir, final_seg_dir = nii_path, seg_path
 
-    # --- DISCOVER FILES ON DISK ---
     if debug and source_type.upper() == 'CHH' and cached_ids is None:
         all_subject_ids_on_disk = set()
         for f in os.listdir(nii_path):
@@ -145,7 +135,6 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
             except: continue
         all_subject_ids_on_disk = set(all_subject_ids_on_disk)
 
-    # 4. CLINICAL DICTIONARY
     clinical_dict, label_map = {}, {}
     clin_dim = 6 
     
@@ -180,7 +169,6 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
                 label_map[sub_id] = 1 if (not pd.isna(off_p) and not pd.isna(post_p) and off_p > 0 and (off_p - post_p)/off_p >= 0.30) else (0 if not pd.isna(off_p) and not pd.isna(post_p) else -1)
             except: continue
 
-    # --- UNLABELED CATCH-ALL ---
     missing_from_csv = []
     for sid in all_subject_ids_on_disk:
         if sid not in clinical_dict:
@@ -189,7 +177,6 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
         if sid not in label_map:
             label_map[sid] = -1 
 
-    # 6. BREAKDOWN CALCULATION
     all_final_ids = list(all_subject_ids_on_disk)
     lbls = [label_map[sid] for sid in all_final_ids]
     valid_vecs = np.array([clinical_dict[sid] for sid in all_final_ids if not np.all(clinical_dict[sid] == 0)])
@@ -219,7 +206,6 @@ def prepare_qsm_dataset(source_type, nii_path, seg_path, csv_path, cache_path,
         print(f"\n[DEBUG] Terminating early as requested. No caching performed.")
         return None
 
-    # 5. DATASET INIT (Caching starts here)
     dataset = QSM_Dataset(final_nii_dir, final_seg_dir, mask_crop_fn, clinical_dict, label_map, 
                           limit=limit, cache_path=cache_path, load_cache=load_cache, 
                           return_index=True, ext_mask_dir=ext_mask_dir, resample_fn=resample_fn)

@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)

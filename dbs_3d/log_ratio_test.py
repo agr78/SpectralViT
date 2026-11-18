@@ -1,17 +1,4 @@
-"""Does log|FFT| work because the model is computing spectral RATIOS?
-
-A weighted sum of log-coefficients is the log of a product of powers:
-    sum_i w_i log x_i = log( prod_i x_i^{w_i} )
-If sum_i w_i = 0 that quantity is invariant to any overall rescaling of the
-spectrum -- it depends only on the RATIOS between modes, i.e. spectral shape.
-
-So if the ratio hypothesis is right, a model fitted on log features should place
-weights that roughly cancel. Compared against the same model on raw |FFT| and on
-sqrt, where no such interpretation applies.
-
-Also fits a model restricted to sum-to-zero weights: if that matches the
-unrestricted fit, the model was only ever using shape.
-"""
+"""Test whether the log-magnitude basis acts through spectral ratios."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 DATA = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
@@ -51,13 +38,11 @@ for name, f in [('raw', lambda X: X), ('sqrt', np.sqrt), ('log', np.log1p)]:
     A, B = f(MA), f(MB)
     s = StandardScaler().fit(A); ZA, ZB = s.transform(A), s.transform(B)
     m = LogisticRegression(C=1.0, max_iter=3000, class_weight='balanced').fit(ZA, bA)
-    w = m.coef_[0] / s.scale_                       # weights acting on the transformed values
+    w = m.coef_[0] / s.scale_
     ia = loo(ZA, bA); ea = roc_auc_score(bB, m.decision_function(ZB))
     print(f"{name:10s} {ia:8.3f} {ea:7.3f} {w.sum():9.4f} {np.abs(w).sum():8.4f} "
           f"{abs(w.sum())/np.abs(w).sum():15.4f}")
 
-# a model constrained to sum-to-zero weights on the log features:
-# project the design matrix onto the subspace orthogonal to the all-ones vector
 A, B = np.log1p(MA), np.log1p(MB)
 s = StandardScaler().fit(A); ZA, ZB = s.transform(A), s.transform(B)
 one = np.ones(ZA.shape[1]) / np.sqrt(ZA.shape[1])
@@ -66,7 +51,6 @@ m = LogisticRegression(C=1.0, max_iter=3000, class_weight='balanced').fit(PA_, b
 print(f"\nlog features, weights CONSTRAINED to sum to zero (pure spectral shape):")
 print(f"   LOO int {loo(PA_, bA):.3f}   ext {roc_auc_score(bB, m.decision_function(PB_)):.3f}")
 print("   if this matches the unconstrained log fit, the model was only using ratios")
-# and the complementary part: the overall spectral level alone
 LA_ = (ZA @ one).reshape(-1, 1); LB_ = (ZB @ one).reshape(-1, 1)
 m = LogisticRegression(C=1.0, max_iter=3000, class_weight='balanced').fit(LA_, bA)
 print(f"\nthe discarded component alone (overall spectral level, 1 feature):")

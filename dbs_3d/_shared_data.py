@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)
@@ -77,6 +77,6 @@ def mask_crops(ds, imp, H):
             if pa.shape==(2*H,2*H): M.append(pa.ravel())
     return np.array(M,bool)
 MA=mask_crops(ds_tr,impA,10)
-POP=(MA.mean(0)>0.5).reshape(2*10,2*10)          # population ROI footprint in crop coords
+POP=(MA.mean(0)>0.5).reshape(2*10,2*10)
 if POP.sum()<8: POP=(MA.mean(0)>MA.mean()).reshape(2*10,2*10)
 print(f"population ROI footprint: {POP.sum()} of {POP.size} pixels")

@@ -1,16 +1,6 @@
 """Paired comparisons against the proposed model for sec:ixipaired.
 
-The draw is the unit of analysis: each cell is one subsample's mean fold AUC, and every
-model is fit on the same draws, so the comparison is paired. We report the mean difference
-in AUC, the number of draws in which the proposed model leads, and a two-sided paired
-t-test.
-
-The sizes at and above n=100 are untouched by the ten-draw run, so their numbers must
-still match the published prose. ASSERT_N566 holds that check: if a refactor silently
-changes how a cell is scored, this fails rather than quietly rewriting the paper.
-
-usage: python make_ixi_paired.py
-"""
+usage: python make_ixi_paired.py"""
 import os
 
 import numpy as np
@@ -24,13 +14,11 @@ SIZES = [25, 50, 100, 200, 566]
 DRAWS = {25: 10, 50: 10, 100: 5, 200: 5, 566: 5}
 BASE = [('unet', 'U-net with attention'), ('spat', 'Spatial ViT'), ('swin', 'Swin ViT'),
         ('logreg', 'Logistic regression'), ('mlp', 'Multilayer perceptron')]
-# published n=566 margins, proposed minus baseline, to 3 dp
 ASSERT_N566 = {'unet': -0.053, 'spat': 0.111, 'swin': 0.205,
                'logreg': -0.035, 'mlp': -0.040}
 
 
 def draws(tag, n):
-    """Mean fold AUC for each subsample draw of one (model, size) cell."""
     out = []
     for s in range(DRAWS[n]):
         f = os.path.join(DIR, f'oof_{tag}_n{n}_s{s}.npz')

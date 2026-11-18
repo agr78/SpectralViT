@@ -1,10 +1,4 @@
-"""Select d and optimisation steps by LOO on the final configuration.
-
-K was selected this way; d and steps were swept only on other configurations
-before that sweep was interrupted. This runs the same protocol on
-'both' ROI + log|FFT| + K=16 so the capacity choices are cross-validated on the
-model actually used.
-"""
+"""Select the embedding width and optimization steps by leave-one-out."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d')

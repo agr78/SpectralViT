@@ -1,19 +1,5 @@
-"""What structure do the spectral bases fail to represent on SynapseMNIST3D?
-
-The spatial ViT reaches 0.577 AUC there while every spectral tokenizer sits at chance, so
-signal exists and the bases are losing it. These representations differ only in what they
-discard, so comparing a fixed linear probe across them localises the loss:
-
-  raw voxels          everything
-  block-DCT complete  everything, orthogonally rotated -- lossless. L2 logistic regression
-                      is invariant to orthogonal rotation, so this MUST match raw voxels;
-                      it is the control that says the pipeline is sound.
-  block-DCT 3^3       lowest frequencies only  -> isolates truncation
-  PCA k               leading variance directions only -> isolates low-rank projection
-  patch means 4^3     local averages, position preserved -> isolates locality
-
-nodulemnist3d is the control dataset: a tokenizer that works there should probe well.
-"""
+"""Which structure the spectral bases do not represent on SynapseMNIST3D."""
+from paths import DATA
 import numpy as np, sys
 from scipy import fft
 from sklearn.decomposition import PCA
@@ -22,8 +8,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_auc_score, accuracy_score
 
-SETS = {'synapsemnist3d': '/workspace/data/medmnist/synapsemnist3d.npz',
-        'nodulemnist3d':  '/workspace/data/medmnist/nodulemnist3d.npz'}
+SETS = {'synapsemnist3d': f'{DATA}/medmnist/synapsemnist3d.npz',
+        'nodulemnist3d':  f'{DATA}/medmnist/nodulemnist3d.npz'}
 SIDE, GRID = 14, 2
 
 

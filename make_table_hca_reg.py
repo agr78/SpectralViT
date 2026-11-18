@@ -1,25 +1,13 @@
-"""Build table:hca-reg from the fixed-epoch HCA regression results.
+"""Build and assert table:hca-reg from the fixed-epoch HCA regression results.
 
-Reads per-seed files in preference to the combined ones. That is not a style choice: a
-long-running serial driver still writes the un-suffixed hca_reg_n{N}_ep500.csv from
-scratch as it reaches each size, so that file can be a partial rewrite at any moment
-(it was 39 rows for n=200 on Oct 18). The per-seed files one task each are append-only
-and never revisited, so they are the durable record. Seeds 0-4 of n=25 and n=50 have no
-per-seed files -- a single process produced them -- so those fall back to the combined
-file, which the driver has long since moved past.
-
-usage: python make_table_hca_reg.py [results_dir]
-"""
+usage: python make_table_hca_reg.py [results_dir]"""
 import os, sys
 import numpy as np
 import pandas as pd
 from scipy import stats
 
-# Repo-relative, not ~-relative: $HOME differs between the cluster account and the
-# container the analysis sometimes runs in, and the ~ form silently resolved to a
-# nonexistent tree there.
-D = sys.argv[1] if len(sys.argv) > 1 else os.path.join(
-    os.path.dirname(os.path.abspath(__file__)), 'results', 'regress')
+HERE = os.path.dirname(os.path.abspath(__file__))
+D = sys.argv[1] if len(sys.argv) > 1 else os.path.join(HERE, 'results', 'regress')
 ROWS, SIZES = 75, [25, 50, 100, 200, 1000]
 PROP = 'SpectralViT rank (Block-DCT)'
 LAB = [('Spectral ViT (proposed)', PROP),
@@ -29,10 +17,30 @@ LAB = [('Spectral ViT (proposed)', PROP),
        ('Spatial ViT', 'SpatialViT (Micro)'),
        ('Swin ViT', 'Swin (Micro)'),
        ('Training-mean baseline', 'MeanBaseline')]
+PUB = {
+    PROP: (10149, {25: (7.64, 1.14), 50: (7.05, 0.84), 100: (6.20, 0.08),
+                   200: (5.88, 0.22), 1000: (5.23, 0.16)}),
+    'AttnUNet (Micro)': (18387, {25: (9.04, 1.04), 50: (7.95, 0.73), 100: (6.63, 0.23),
+                                 200: (6.11, 0.28), 1000: (5.20, 0.10)}),
+    'LogisticRegression (Block-DCT)': (4097, {25: (11.07, 1.22), 50: (8.43, 0.75),
+                                              100: (6.51, 0.24), 200: (5.92, 0.30),
+                                              1000: (5.20, 0.11)}),
+    'MLP (Block-DCT)': (43768, {25: (9.05, 0.96), 50: (7.96, 0.89), 100: (6.64, 0.36),
+                                200: (5.99, 0.32), 1000: (4.92, 0.31)}),
+    'SpatialViT (Micro)': (65554, {25: (10.86, 1.92), 50: (9.39, 0.84), 100: (7.95, 1.38),
+                                   200: (6.30, 0.25), 1000: (5.05, 0.23)}),
+    'Swin (Micro)': (13682, {25: (10.68, 1.69), 50: (10.41, 1.04), 100: (9.88, 0.93),
+                             200: (9.04, 1.17), 1000: (7.40, 0.17)}),
+    'MeanBaseline': (None, {25: (12.96, 0.67), 50: (13.49, 0.88), 100: (13.79, 1.11),
+                            200: (14.09, 1.04), 1000: (13.84, 0.06)}),
+}
+BOLD = {25: PROP, 50: PROP, 100: PROP, 200: PROP, 1000: 'MLP (Block-DCT)'}
+BOLD_PARAMS = 'LogisticRegression (Block-DCT)'
+DRAWS = {25: 10, 50: 10, 100: 5, 200: 5, 1000: 5}
+PMAX = 0.005
 
 
 def load(n, want=int(os.environ.get("HCA_WANT", 10))):
-    """Every complete seed of one size, per-seed files first."""
     frames = []
     for s in range(want):
         f = os.path.join(D, f'hca_reg_n{n}_ep500_s{s}.csv')
@@ -57,6 +65,9 @@ cols = [n for n in SIZES if have[n] >= 5]
 print('seeds available: ' + ', '.join(f'n={n} {have[n]}' for n in SIZES))
 print()
 
+bad = [f'n={n} draws: {have[n]} against the caption\'s {DRAWS[n]}'
+       for n in SIZES if have[n] != DRAWS[n]]
+
 
 def cell(n, m):
     sm = data[n][data[n].Model == m].groupby('Seed').MAE.mean()
@@ -71,8 +82,14 @@ for lab, m in LAB:
     for n in cols:
         mu, sd = cell(n, m)
         row += '%18s' % ('%.2f +/- %.2f%s' % (mu, sd, '*' if m == best[n] else ' '))
+        pm, ps = PUB[m][1][n]
+        if (f'{mu:.2f}', f'{sd:.2f}') != (f'{pm:.2f}', f'{ps:.2f}'):
+            bad.append(f'{m} n={n}: {mu:.2f} +/- {sd:.2f} '
+                       f"against the table's {pm:.2f} +/- {ps:.2f}")
     print(row)
 print('* best in column')
+bad += [f"n={n} bold: {best[n]} against the table's {BOLD[n]}"
+        for n in cols if best[n] != BOLD[n]]
 print()
 print('paired t-test on per-seed MAE, proposed vs each baseline (delta>0 favors proposed)')
 print('%-24s' % 'baseline' + ''.join('%22s' % f'n={n}' for n in cols))
@@ -87,7 +104,37 @@ for lab, m in LAB:
                                                  stats.ttest_1samp(sm, 0).pvalue))
     print(row)
 print()
-print('parameters (mean over folds, n=25):')
+worst = 0.0
+for n in cols:
+    piv = data[n].pivot_table(index=['Seed', 'Fold'], columns='Model', values='MAE')
+    for _, m in LAB:
+        if m != 'MeanBaseline':
+            sm = (piv['MeanBaseline'] - piv[m]).groupby(level='Seed').mean()
+            worst = max(worst, stats.ttest_1samp(sm, 0, alternative='greater').pvalue)
+print('improvement over the training-mean baseline, one-sided paired t over draws:')
+print('  largest p over %d cells: %.3f' % (len(cols) * (len(LAB) - 1), worst))
+if float(f'{worst:.3f}') > PMAX:
+    bad.append(f"mean-estimate p: {worst:.3f} against the caption's <= {PMAX:.3f}")
+print()
+print('parameters (mean over folds and draws, n=25):')
+if data[25] is None:
+    raise SystemExit('DOES NOT MATCH table:hca-reg:\n  ' + '\n  '.join(
+        bad + ['parameters: no n=25 results under ' + D]))
+counted = {}
 for lab, m in LAB:
     p = data[25][data[25].Model == m].Params.mean()
-    print('  %-24s %10s' % (lab, '--' if not np.isfinite(p) or p == 0 else f'{int(round(p)):,}'))
+    counted[m] = p
+    got = '--' if not np.isfinite(p) or p == 0 else f'{int(round(p)):,}'
+    print('  %-24s %10s' % (lab, got))
+    pub = PUB[m][0]
+    want = '--' if pub is None else f'{pub:,}'
+    if got != want:
+        bad.append(f"{m} params: {got} against the table's {want}")
+smallest = min((v, m) for m, v in counted.items() if np.isfinite(v) and v > 0)[1]
+if smallest != BOLD_PARAMS:
+    bad.append(f"params bold: {smallest} against the table's {BOLD_PARAMS}")
+
+if bad:
+    raise SystemExit('DOES NOT MATCH table:hca-reg:\n  ' + '\n  '.join(bad))
+print()
+print(f'matches table:hca-reg: all {len(PUB) * (len(SIZES) + 1)} cells')

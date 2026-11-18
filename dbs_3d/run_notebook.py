@@ -1,15 +1,8 @@
 """Execute a notebook in process and store each cell's stdout as its output.
 
-Written because the notebook has no other generator: cells share one namespace and the
-later statistics depend on the order of the model list, so they must run in sequence.
-
-usage: run_notebook.py <notebook.ipynb>
-"""
+usage: run_notebook.py <notebook.ipynb>"""
 import sys, os, json, io, contextlib, traceback, time
 
-# Absolute, because the notebook's first cell does os.chdir(REPO): a relative path
-# here writes the executed copy into whatever directory that leaves us in, which
-# silently strands the outputs away from the notebook they belong to.
 nbf = os.path.abspath(sys.argv[1])
 nb = json.load(open(nbf))
 ns, n = {}, 0

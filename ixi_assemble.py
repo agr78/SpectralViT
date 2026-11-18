@@ -1,13 +1,8 @@
-"""Assemble the IXI table from saved out-of-fold predictions.
-
-Arms are given as name=path pairs so cells can come from whichever run produced them at
-the selected capacity, while Swin and the U-net -- which depend on neither the component
-count nor the patch size -- are reused rather than recomputed. All runs must share the
-same KFold(random_state=0) assignment; the label vectors are checked for equality.
-"""
+"""Assemble the IXI table from saved out-of-fold predictions."""
+from paths import REPO, RESULTS
 import sys, os
 import numpy as np, pandas as pd
-sys.path.insert(0, '/workspace')
+sys.path.insert(0, REPO)
 from sklearn.metrics import roc_auc_score, accuracy_score
 from util import compute_delong_paired, compute_mcnemar
 
@@ -17,7 +12,7 @@ LABELS = {'spec': 'Spectral ViT (proposed)', 'spat': 'Standard spatial ViT',
 ORDER = ['spec', 'spat', 'match', 'swin', 'unet']
 
 args = dict(a.split('=', 1) for a in sys.argv[1:] if '=' in a)
-out = args.pop('out', '/workspace/results/ixi_final/ixi_table.csv')
+out = args.pop('out', f'{RESULTS}/ixi_final/ixi_table.csv')
 d = {k: np.load(v) for k, v in args.items()}
 ref = d['spec']['y']
 for k, v in d.items():

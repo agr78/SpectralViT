@@ -1,11 +1,7 @@
 """Regenerate the IXI sex-classification table and its significance tests in one run.
 
-The published table mixes rows from two runs, so its p-values and point estimates do not
-come from the same experiment. This reproduces the notebook protocol end to end and emits
-the table, parameter counts and DeLong/McNemar tests together.
-
-usage: python ixi_regen.py [--smoke]
-"""
+usage: python ixi_regen.py [--smoke]"""
+from paths import RESULTS
 import os, sys, json, time
 import numpy as np, pandas as pd, torch, torch.nn as nn, torch.optim as optim
 from sklearn.decomposition import PCA
@@ -22,7 +18,7 @@ from validate import SpectralViT_cv, SpatialViT_cv
 SMOKE   = '--smoke' in sys.argv
 IXI_DIR = os.environ.get('IXI_DIR', '/checkpoints/data/IXI_extracted/')
 CSV     = os.path.join(IXI_DIR, 'IXI.csv')
-OUT     = os.environ.get('IXI_OUT', '/workspace/results/ixi_regen')
+OUT     = os.environ.get('IXI_OUT', f'{RESULTS}/ixi_regen')
 VOL, LR, BATCH, NF = 96, 1e-4, 8, 5
 EPOCHS  = 3 if SMOKE else int(os.environ.get('IXI_EPOCHS', 500))
 PHYS, EFF = 2, 8
@@ -37,8 +33,7 @@ Xf = X.reshape(len(X), -1)
 print(f'IXI: {len(X)} volumes {X.shape[1:]}, labels {np.bincount(Y.astype(int))}', flush=True)
 kf = KFold(n_splits=2 if SMOKE else NF, shuffle=True, random_state=0)
 
-# Capacity by cross-validation, as the notebook did.
-if os.environ.get('IXI_NCOMP'):           # override the probe, e.g. the paper's 128
+if os.environ.get('IXI_NCOMP'):
     NCOMP = int(os.environ['IXI_NCOMP'])
     PATCH = int(os.environ.get('IXI_PATCH', 12))
 elif SMOKE:
@@ -56,7 +51,6 @@ print(f'selected: N_COMP={NCOMP}  patch={PATCH}', flush=True)
 
 
 def run(tag, build, spectral=False):
-    """Train one arm across folds, returning pooled out-of-fold probabilities."""
     probs, ytrue, nparam = [], [], None
     for fold, (tr, te) in enumerate(kf.split(Xf), 1):
         t0 = time.time(); torch.cuda.empty_cache()
@@ -133,7 +127,6 @@ for tag, label, _, _ in ARMS:
         r['DeLong_z'] = r['DeLong_p'] = float('nan')
         r['McNemar_chi2'] = r['McNemar_p'] = float('nan')
     else:
-        # both helpers return (statistic, p); the p-value is symmetric in argument order
         r['DeLong_z'], r['DeLong_p'] = compute_delong_paired(base[0], pp, base[1])
         r['McNemar_chi2'], r['McNemar_p'] = compute_mcnemar(
             base[0], (pp > 0.5).astype(int), (base[1] > 0.5).astype(int))

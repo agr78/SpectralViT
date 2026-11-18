@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)
@@ -15,7 +15,6 @@ from sklearn.metrics import roc_auc_score
 from scipy.stats import pearsonr
 exec(open(os.path.join(SPDIR,'vol3d.py')).read().split('REG={')[0])
 t0=time.time(); log=lambda m: print(f"[{time.time()-t0:5.0f}s] {m}",flush=True)
-# ---- build the UNLABELED pool: every volume with a bilateral ROI, labeled or not ----
 def all_vols(ds):
     V,S=[],[]
     for s in sorted(ds.volumes):

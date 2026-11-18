@@ -1,18 +1,4 @@
-"""Final MedMNIST3D comparison: spectral vs spatial at n=25, both arms tuned identically.
-
-Candidate sets: every config with test AND inner-CV results on all six datasets for the
-spectral arm; the five patch sizes that divide 28 for the spatial arm. Selection score for
-both arms is the pooled out-of-fold AUC inside each draw's 25 training volumes. No test
-label enters any selection, on either side.
-
-Two selectors, both applied to both arms:
-  flat     argmax of the inner CV score over the whole candidate set
-  family   a convex probe on the 25 training volumes picks a FEATURE FAMILY (signed
-           coefficients / magnitudes / band energy / topology), then the inner CV picks the
-           config within it. Restricting the search cuts selection variance, which is the
-           binding constraint: the inner score's split-half reliability is +0.184 and it
-           ranks the true best config 5th of 115 on synapse.
-"""
+"""Final MedMNIST3D comparison of spectral against spatial, both arms tuned identically."""
 import glob, os, re
 import numpy as np, pandas as pd
 from scipy.stats import ttest_rel, wilcoxon
@@ -71,7 +57,7 @@ for f in glob.glob('results/medmnist_patchcv/*/*/medmnist_oof.csv'):
 
 cand = [c for c in {c for c, k in te}
         if all((c, k) in te and (c, k) in cv for k in DS)]
-PAT = ['patch4', 'patch7', 'patch14']   # matched to HCA's {4,8,16}: three patch sizes, no degenerate extremes (28=1 token, 2=2744 tokens), and 8/16 do not divide 28
+PAT = ['patch4', 'patch7', 'patch14']
 P = pd.read_csv('results/family_probe.csv')
 print('spectral candidates %d (%s)' % (len(cand), ', '.join(
     '%s %d' % (f, sum(1 for c in cand if fam_of(c) == f)) for f in FAM)))

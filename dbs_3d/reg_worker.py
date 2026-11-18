@@ -1,12 +1,6 @@
-"""Regression version of the winning architecture, on continuous UPDRS improvement.
+"""Regression on continuous UPDRS improvement.
 
-The binary endpoint is limited by CHH having 3 non-responders: external AUC must
-exceed 0.79 for p<0.05 regardless of the model. The continuous endpoint uses all
-37 CHH patients, so the same effect size buys far more power -- at n=37, r=0.40
-gives p~0.014 and r=0.50 gives p~0.002.
-
-usage: reg_worker.py <ordering> <K> <weight> [nseeds]
-"""
+usage: reg_worker.py <ordering> <K> <weight> [nseeds]"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)

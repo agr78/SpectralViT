@@ -1,14 +1,7 @@
 """One (model, K) cell of the multi-model scorecard, or one permutation chunk.
 
-Cells are independent, so many run concurrently. Each is tiny -- the limit is
-kernel-launch latency, not compute -- so throughput comes from concurrency.
-
-phase cell : LOO internal over NS seeds + external, predictions saved
-phase perm : one chunk of label permutations with a full LOO refit each
-
 usage: sc_worker.py cell <model> <K> <nseeds>
-       sc_worker.py perm <model> <K> <chunk> <nperm>
-"""
+  sc_worker.py perm <model> <K> <chunk> <nperm>"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d', 'sc'); os.makedirs(OUT, exist_ok=True)
@@ -32,7 +25,7 @@ K = int(sys.argv[3])
 torch.set_num_threads(2)
 src = open(os.path.join(SPDIR, 'roi_x_models.py')).read().split('IDX = low_modes')[0]
 g = {'__file__': os.path.join(SPDIR, 'roi_x_models.py')}
-_argv = sys.argv; sys.argv = [_argv[0]]          # the prep block reads argv for its own seed count
+_argv = sys.argv; sys.argv = [_argv[0]]
 exec(compile(src, 'x', 'exec'), g)
 sys.argv = _argv
 HA, LA, HB, LB, bA, bB, Ca, Cb = g['HA'], g['LA'], g['HB'], g['LB'], g['bA'], g['bB'], g['Ca'], g['Cb']
@@ -44,18 +37,12 @@ IDX = low_modes(K, (2*H, 2*H, 2*DZ), 'lap')
 LAM = np.r_[eigvals(IDX, (2*H, 2*H, 2*DZ))]*2 if False else np.r_[eigvals(IDX, (2*H, 2*H, 2*DZ)),
                                                                    eigvals(IDX, (2*H, 2*H, 2*DZ))]
 lg = lambda V: np.stack([np.log1p(np.abs(fftn(V, axes=(1, 2, 3))))[:, a, b, c] for a, b, c in IDX], 1)
-XA = np.hstack([lg(HA), lg(LA)]); XB = np.hstack([lg(HB), lg(LB)])          # 'both' ROI
-# Spatial ViT is tuned over patch size on the same footing as K for the
-# spectral models: K in {8,16,32} maps to patch size {8,5,4}, giving token
-# counts of roughly 16, 96 and 200 for the 'both' ROI.
+XA = np.hstack([lg(HA), lg(LA)]); XB = np.hstack([lg(HB), lg(LB)])
 PS = {8: 8, 16: 5, 32: 4}.get(K, 5)
 patch = lambda V: np.stack([V[:, i:i+PS, j:j+PS, k:k+PS].reshape(len(V), -1).mean(1)
                             for i in range(0, 2*H-PS+1, PS) for j in range(0, 2*H-PS+1, PS)
                             for k in range(0, 2*DZ-PS+1, PS)], 1)
 PA = np.hstack([patch(HA), patch(LA)]); PB = np.hstack([patch(HB), patch(LB)])
-# Attention U-Net baseline: the repo class on the raw crops, both nuclei as channels.
-# K indexes width so it searches capacity on the same footing as the other models.
-# Volumes are z-scored with MSW statistics only.
 BC = {8: 4, 16: 7, 32: 12}.get(K, 7)
 UA = np.stack([HA, LA], 1); UB = np.stack([HB, LB], 1)
 _um, _us = UA.mean(), UA.std()
@@ -77,7 +64,6 @@ class TokenViT(nn.Module):
 
 
 def predict(tr, te, y, seed):
-    """fit on rows `tr`, predict rows `te`; te may index MSW (int array) or be 'EXT'"""
     ext = isinstance(te, str)
     if MODEL == 'Clinical':
         m = LogisticRegression(C=1.0, max_iter=3000, class_weight='balanced').fit(DA[tr], y[tr])
@@ -109,7 +95,6 @@ def tfit(mk, Xtr, ytr, Xte, seed, ep=200):
 
 
 def cfit(Xtr, ytr, Xte, seed, ep=200):
-    """Clinical covariates as tokens; embed/heads/layers as reported in the manuscript."""
     torch.manual_seed(seed)
     m = ClinicalTransformer(Xtr.shape[1], embed_dim=32, n_heads=2, n_layers=1).to(dev)
     opt = torch.optim.AdamW(m.parameters(), 3e-3, weight_decay=0.1); lf = nn.BCEWithLogitsLoss()

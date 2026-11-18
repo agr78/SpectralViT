@@ -1,13 +1,5 @@
-"""Which frequencies carry the class signal? Keep 216 coefficients chosen different ways.
-
-The tokenizer keeps the 3^3 lowest frequencies of each block, but that is a choice. If
-synapse's signal is high-frequency, a high band should probe better at the same budget.
-The fold-wise F selection is the ceiling: the best 216 coefficients any fixed rule could
-pick, chosen on the training fold alone so it stays honest.
-
-Run unscaled and linear: per-feature standardisation costs 0.09 AUC on synapse by
-amplifying near-zero coefficients, and the log compression makes almost no difference.
-"""
+"""Compare frequency bands by holding the coefficient count fixed and varying which are kept."""
+from paths import DATA
 import numpy as np
 from scipy import fft
 from sklearn.linear_model import LogisticRegression
@@ -17,7 +9,7 @@ from sklearn.metrics import roc_auc_score
 
 SIDE, K = 14, 216
 for name in ('synapsemnist3d', 'nodulemnist3d'):
-    z = np.load(f'/workspace/data/medmnist/{name}.npz')
+    z = np.load(f'{DATA}/medmnist/{name}.npz')
     X = z['train_images'].astype(np.float32); y = z['train_labels'].ravel()
     X = (X - X.mean()) / X.std()
     offs = list(range(0, X.shape[1] - SIDE + 1, SIDE))

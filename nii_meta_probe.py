@@ -1,12 +1,9 @@
 """Look for demographics in NIfTI headers, extensions and BIDS JSON sidecars.
 
-usage: python nii_meta_probe.py <subject_dir_or_root>
-"""
+usage: python nii_meta_probe.py <subject_dir_or_root>"""
 import os, sys, json, glob
 import nibabel as nib
 
-# Takes the subject directory as an argument rather than defaulting to one: the default
-# used to name a real HCP-Aging subject, and this repository is public.
 if len(sys.argv) < 2:
     sys.exit(__doc__.strip())
 root = sys.argv[1]
@@ -34,7 +31,6 @@ for p in nii[:3]:
             print(f'      code={e.get_code()} content={s!r}')
     except Exception as e:
         print(f'    (header unreadable: {type(e).__name__}: {e})')
-    # sidecar
     base = p[:-7] if p.endswith('.nii.gz') else p[:-4]
     for j in [base + '.json'] + glob.glob(os.path.join(os.path.dirname(p), '*.json')):
         if os.path.exists(j):

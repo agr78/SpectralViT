@@ -1,16 +1,16 @@
 """Random examples from every MedMNIST3D set, and a class contrast for synapse."""
+from paths import DATA
 import numpy as np, glob, os
 import matplotlib; matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 
-S = {'organmnist3d': '/agent-home/medmnist/organmnist3d.npz'}
-for f in sorted(glob.glob('/workspace/data/medmnist/*.npz')):
+S = {'organmnist3d': f'{DATA}/medmnist/organmnist3d.npz'}
+for f in sorted(glob.glob(f'{DATA}/medmnist/*.npz')):
     S[os.path.basename(f)[:-4]] = f
 ORDER = ['organmnist3d', 'nodulemnist3d', 'adrenalmnist3d',
          'fracturemnist3d', 'vesselmnist3d', 'synapsemnist3d']
 rs = np.random.RandomState(0)
 
-# --- 10 random volumes per dataset, central slice -------------------------
 fig, ax = plt.subplots(len(ORDER), 10, figsize=(14, 1.55 * len(ORDER)))
 for r, name in enumerate(ORDER):
     z = np.load(S[name]); X = z['train_images']; y = z['train_labels'].ravel()
@@ -25,7 +25,6 @@ fig.tight_layout()
 fig.savefig('results/medmnist_examples.png', dpi=150, bbox_inches='tight')
 print('wrote results/medmnist_examples.png')
 
-# --- synapse by class, several slices -------------------------------------
 z = np.load(S['synapsemnist3d']); X = z['train_images']; y = z['train_labels'].ravel()
 SL = [7, 11, 14, 17, 21]
 fig, ax = plt.subplots(10, len(SL), figsize=(2.0 * len(SL), 19))

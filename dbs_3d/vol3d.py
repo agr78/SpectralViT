@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)
@@ -33,7 +33,7 @@ for _,r in d2.iterrows():
         sid=int(float(r[0])); a=pd.to_numeric(r[9],errors='coerce'); b=pd.to_numeric(r[11],errors='coerce')
         if pd.notna(a) and pd.notna(b) and a>0: impB[sid]=(a-b)/a
     except Exception: pass
-H,DZ=10,8                                   # 20 x 20 x 16 volume
+H,DZ=10,8
 def vols(ds,imp):
     V,M,S=[],[],[]
     for s in sorted(ds.volumes):
@@ -44,7 +44,7 @@ def vols(ds,imp):
         if n<2: continue
         big=np.argsort(sz)[::-1][:2]+1
         info=sorted([(float(v[lb==b].mean()),b) for b in big],key=lambda t:t[0])
-        b=info[1][1]                        # higher-susceptibility side
+        b=info[1][1]
         cx,cy,cz=[int(round(c)) for c in ndimage.center_of_mass(m,lb,[b])[0]]
         _x=min(max(0,cx-H), v.shape[0]-2*H); _y=min(max(0,cy-H), v.shape[1]-2*H); _z=min(max(0,cz-DZ), v.shape[2]-2*DZ)
         sl=(slice(_x,_x+2*H),slice(_y,_y+2*H),slice(_z,_z+2*DZ))

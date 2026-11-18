@@ -1,29 +1,23 @@
-"""Report the IXI data-efficiency curve from whatever sweep cells have landed so far.
+"""Report the IXI data-efficiency curve from the completed sweep cells.
 
-Reads the suffixed out-of-fold files the array writes and prints mean AUC by sample size,
-skipping cells that are not yet written. Mirrors the summary into results/ so it can be
-read without pasting.
-
-usage: python ixi_curve_report.py
-"""
+usage: python ixi_curve_report.py"""
+from paths import DATA
 import os
 import numpy as np
 from scipy import stats
 from sklearn.metrics import roc_auc_score
 
 def _sweep_dir():
-    """Prefer the in-repo mirror, which is readable everywhere; else the scratch copy."""
     env = os.environ.get('IXI_SWEEP_DIR')
     if env:
         return env
     mirror = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'results', 'ixi_curve')
     if os.path.isdir(mirror) and any(f.startswith('oof_') for f in os.listdir(mirror)):
         return mirror
-    return os.path.expanduser('~/spacelink/ixi_nested')
+    return f'{DATA}/ixi_nested'
 
 
 DIR = _sweep_dir()
-# Overridable so a run against a scratch directory cannot clobber the real report.
 OUT = os.environ.get('IXI_REPORT_OUT') or os.path.join(
     os.path.dirname(os.path.abspath(__file__)), 'results', 'ixi_curve_progress.txt')
 SIZES = [25, 50, 100, 200, 566]
@@ -33,7 +27,6 @@ ARMS = [('spec', 'Spectral ViT'), ('unet', 'AttnU-net'), ('spat', 'Spatial ViT')
 
 
 def cell(tag, n, s):
-    """Mean fold AUC for one (arm, size, seed), or None if the cell is not written."""
     f = os.path.join(DIR, f'oof_{tag}_n{n}_s{s}.npz')
     if not os.path.exists(f):
         return None
@@ -48,9 +41,6 @@ lines = [f'IXI data-efficiency sweep, reading {DIR}',
          'Mean fold AUC per cell, averaged over the seeds that have finished.',
          'A cell is written only when all five arms of that (n, seed) complete.', '',
          ' ' * 22 + ' ' + ' '.join(f'{"n=" + str(n):>12s}' for n in SIZES)]
-# Keyed by seed, not a bare list: arms within a cell finish in order, so one arm can
-# be a seed ahead of another and comparing their first k entries would silently pair
-# different subsamples.
 grid = {}
 for tag, name in ARMS:
     row = []
@@ -89,8 +79,6 @@ for tag, name in ARMS[1:]:
             row.append(f'{"--":>9s}')
     lines.append(f'  vs {name:19s} ' + ' '.join(f'{c:>14s}' for c in row))
 
-# Counted per group: the two simple baselines were added after the first cells ran, so
-# a single all-arms count would report zero while nine volume-arm cells are finished.
 VOL_ARMS = ['spec', 'spat', 'swin', 'unet']
 SIMPLE = ['logreg', 'mlp']
 

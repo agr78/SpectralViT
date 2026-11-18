@@ -1,10 +1,6 @@
-"""Every model uses an MSW-calibrated threshold, so the procedure is not the
-explanation for differing external specificity. This measures how far each
-model's score distribution moves between sites, and whether that tracks the
-specificity drop.
+"""Threshold shift by model under a calibrated operating point.
 
-usage: shift_by_model.py <model> <K> <nseeds>
-"""
+usage: shift_by_model.py <model> <K> <nseeds>"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d', 'shift'); os.makedirs(OUT, exist_ok=True)
@@ -33,8 +29,8 @@ for sd in range(NS):
     PR.append(loo(bA, sd)); PB.append(predict(np.arange(len(bA)), 'EXT', bA, sd)); TH.append(cal(bA, PR[-1]))
 pr, pb, thr = np.mean(PR, 0), np.mean(PB, 0), float(np.mean(TH))
 sp = lambda y, p, t: (lambda c: c[0]/(c[0]+c[1]))(confusion_matrix(y, (p >= t).astype(int), labels=[0, 1]).ravel()[:2])
-q = float((pr < thr).mean())                       # the MSW quantile the threshold sits at
-tq = float(np.quantile(pb, q))                     # same quantile in CHH
+q = float((pr < thr).mean())
+tq = float(np.quantile(pb, q))
 res = dict(model=MODEL, K=K, thr=thr,
            msw_mean=float(pr.mean()), msw_sd=float(pr.std()),
            chh_mean=float(pb.mean()), chh_sd=float(pb.std()),

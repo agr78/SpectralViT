@@ -1,21 +1,6 @@
 """Full metric table with quantile-transferred operating point.
 
-A threshold calibrated on MSW lands at the wrong place in CHH because the score
-distributions differ in location and spread (SpectralViT: CHH mean +0.33 MSW-SD,
-CHH spread 3.5x narrower). Transferring the operating QUANTILE instead of the
-raw threshold fixes that, uses no CHH labels, and is justified here because the
-two cohorts have near-identical non-responder prevalence (5/66 = 7.6% vs
-3/37 = 8.1%).
-
-Reports both operating points so the difference is visible:
-  raw       threshold value calibrated on MSW, applied directly
-  quantile  the MSW operating quantile, applied to the CHH score distribution
-
-Predictions are seed-ensembled (average the scores, then threshold once), which
-is more stable than averaging per-seed metrics.
-
-usage: metrics2.py <model> <K> <nseeds>
-"""
+usage: metrics2.py <model> <K> <nseeds>"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 MOUT = os.path.join(REPO, 'docs', 'dbs_3d', 'metrics2'); os.makedirs(MOUT, exist_ok=True)
@@ -55,10 +40,10 @@ t0 = time.time()
 PR, PB = [], []
 for sd in range(NS):
     PR.append(loo(bA, sd)); PB.append(predict(np.arange(len(bA)), 'EXT', bA, sd))
-pr, pb = np.mean(PR, 0), np.mean(PB, 0)              # seed-ensembled
-thr = cal(bA, pr)                                     # MSW only
-q = float((pr < thr).mean())                          # MSW operating quantile
-tq = float(np.quantile(pb, q))                        # same quantile in CHH
+pr, pb = np.mean(PR, 0), np.mean(PB, 0)
+thr = cal(bA, pr)
+q = float((pr < thr).mean())
+tq = float(np.quantile(pb, q))
 res = dict(model=MODEL, K=K, nseeds=NS, pred_msw=pr, pred_chh=pb, y_msw=bA, y_chh=bB, thr=thr, quantile=q, thr_chh=tq,
            internal=full(bA, pr, thr),
            external_raw=full(bB, pb, thr),

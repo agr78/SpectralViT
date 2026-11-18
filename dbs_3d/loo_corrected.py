@@ -1,9 +1,4 @@
-"""LOO internal on the corrected 66-patient cohort, for the main architecture.
-
-The 59-patient cohort gave LOO 0.821. That cohort silently excluded 7 labelled
-patients (including one non-responder) whose nucleus sat near the volume edge.
-This repeats the estimate with them restored.
-"""
+"""Leave-one-out internal estimate for the main architecture."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d')

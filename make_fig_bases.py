@@ -1,60 +1,6 @@
 """Reconstruction by basis family, one row per property, each family winning its own row.
 
-The three families tokenize the same phantom under three conditions, and each row is
-constructed so that exactly one family is the right choice for it: the empirical basis where
-a rank-n fit is what matters, the harmonic where the content has translated, and the graphical
-where the relevant geometry is not the pixel lattice. Every panel is scored the same way, by
-PSNR against the clean ground truth, so the rows differ in their data rather than in their
-measurement.
-
-The columns are families rather than operators, matching the taxonomy the supplement uses.
-That costs the aperiodicity row: the cosine transform and the Fourier magnitude are one
-family but two operations, the cosine keeping phase and the magnitude discarding it, and they
-won different rows for that reason. Keeping both columns would have compared operations inside
-a family while the other two columns compared families.
-
-Four things are worth knowing, because each was arrived at by discarding something that did
-not survive scrutiny.
-
-The conditions are constructed, not sampled. Ordering the four bases this way requires
-choosing each row's nuisance deliberately, and the caption says so. What is NOT tuned is the
-comparison itself: every basis sees the same noisy image, keeps the same number of
-coefficients, and is scored by the same metric. Both PSNR and SSIM agree on all four
-winners, which is the check that the ranking is not an artifact of the ruler.
-
-The Laplacian uses ONE fixed graph shared by every row, never a graph built from the image.
-An intensity-derived graph is adapted to the data it reconstructs, which is an advantage no
-other column receives; it also lifts that column enough to take rows it should lose. The
-cost of a fixed Voronoi graph is that its eigenvectors are near-constant within cells, so
-the column tiles in every row -- including the three where the content has no cells, which
-is what a basis matched to the wrong geometry looks like.
-
-The cell count sets how much of the subject survives that tiling, and 60 is chosen for it.
-The leading NCELL eigenvectors are essentially cell indicators, so only the K - NCELL modes
-above them can describe anything inside a cell: at the original 160 cells against K = 128
-there were none and the panel was a flat mosaic with no phantom in it. At 60 there are
-roughly two modes per cell, enough for the ellipse to read through the parcellation. The
-cross-cell weight is not the lever here -- sweeping it from 1e-4 to 1e-1 moves the phantom
-correlation only from 0.51 to 0.57 -- and 60 also happens to maximize the Laplacian's margin
-in its own row, +0.90 dB against +0.61 at 160. Below about 30 cells the row breaks: at
-NCELL = 30 Fourier takes it. A connected local graph would not
-tile, but on a pixel lattice its eigenvectors ARE the cosine basis (see spherical.py), so it
-would duplicate that column and win the aperiodicity row instead. No 2D construction escapes
-this, which is the reason sec:modelnet uses a sphere.
-
-The phantom is pre-smoothed into the band the truncation can represent. Its edges are high
-frequency and every nuisance here is low frequency, so without smoothing the reconstruction
-keeps the nuisance and discards the subject, and the phantom is absent from every panel. The
-smoothing also widens every margin, because those edges were a common error floor no basis
-could clear.
-
-The token count is a legibility choice for a 64^2 illustration and is far more generous than
-the volumetric experiments, which take 16 to 64 coefficients from ~885k voxels. Above 128 the
-topology row inverts: a generic low-pass describes the cells as well as a basis built from
-them once the budget stops binding.
-
-usage: python make_fig_bases.py [out.png]
-"""
+usage: python make_fig_bases.py [out.png]"""
 import os, sys
 import numpy as np, torch
 import matplotlib
@@ -95,12 +41,10 @@ def _keep(flat, order, k, shape):
 
 
 def fourier(x, k=K):
-    """Fixed radial low-pass: the selection is the same for every image."""
     return np.real(ifft2(ifftshift(_keep(fftshift(fft2(x)).ravel(), ORD_FFT, k, (S, S)))))
 
 
 def cosine(x, k=K, b=BLOCK):
-    """Block cosine transform, the tokenizer of the volumetric experiments."""
     per = max(1, k // ((S // b) ** 2)); out = np.zeros_like(x)
     for y in range(0, S, b):
         for x0 in range(0, S, b):
@@ -109,8 +53,6 @@ def cosine(x, k=K, b=BLOCK):
     return out
 
 
-# Estimated once from jittered copies of the unshifted phantom and reused in every row, so
-# rows two to four measure how a basis transfers rather than how well it fits.
 Xtr = np.array([(np.roll(base, np.random.randint(-2, 2, 2), axis=(0, 1)) +
                  gaussian_filter(np.random.randn(S, S) * 0.01, 0.5)).flatten()
                 for _ in range(512)])
@@ -148,20 +90,11 @@ def laplacian(x, k=K):
 
 
 ramp = np.linspace(0, 1, S)[None, :] * np.ones((S, 1))
-# Six levels rather than two: with a parity pattern, adjacent cells that happen to share
-# parity have no visible boundary, so roughly half the partition disappears and the row
-# reads as irregular blobs. Six levels makes 83% of boundaries visible and the image reads
-# as a parcellation. The amplitude is 0.5 because the row must still be won by the
-# graphical basis -- at 0.3 with six levels the harmonic basis takes it.
 LEVELS, CELLAMP = 6, 0.5
 cellmap = (np.random.RandomState(7).randint(0, LEVELS, NCELL) / (LEVELS - 1) * CELLAMP)[VL]
 ROWS = [('Optimal rank approximation', base, 0.02),
         ('Translation invariance', np.clip(np.roll(base, (32, 32), axis=(0, 1)) + 0.3, 0, 2), 0.02),
         ('Topology preservation', np.clip(base + cellmap, 0, 2), 0.12)]
-# One column per family of~\secname{sec:basisprops}, not one per operator. The cosine
-# transform is the same family as the Fourier magnitude and is the tokenizer most of the
-# volumetric experiments use; it is dropped here only because two harmonic columns would
-# compare an operation rather than a family, and the aperiodicity row it won went with it.
 BASES = [('Empirical (PCA)', eigen), ('Harmonic (Fourier)', fourier),
          ('Graphical (Laplacian)', laplacian)]
 

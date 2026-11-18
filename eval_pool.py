@@ -1,10 +1,4 @@
-"""Did pooling every basis and selecting inside the pool beat choosing one basis?
-
-Compared against dct_energy, the best single fixed arm (+0.031), on the same 30
-(dataset, seed) cells and the same cached spatial predictions, so every comparison is
-paired. SELK was fixed at 312 before any of these ran -- dct_energy's feature count --
-so a win cannot come from the pool simply carrying more features.
-"""
+"""Pool every basis and select inside the pool."""
 import glob, os, re, sys
 import numpy as np, pandas as pd
 from scipy.stats import ttest_rel
@@ -64,7 +58,6 @@ for k in DS:
           (k, ref[k].mean(), df.iloc[0]['per'][k],
            nn['per'][k] if nn is not None else np.nan))
 
-# What the group selector actually kept, over every (dataset, seed) it ran.
 log = open('results/medmnist_pool_run.log').read()
 keeps = re.findall(r'pool \d+ -> \d+ via group \| (.+)', log)
 if keeps:

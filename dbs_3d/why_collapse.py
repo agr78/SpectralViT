@@ -1,18 +1,4 @@
-"""Why did internal/external correspondence collapse when 7 patients were restored?
-
-59-patient cohort: LOO internal 0.821, external 0.816  (corresponded)
-66-patient cohort: internal ~0.5,     external 0.69-0.86 (inverted)
-
-The external set is unchanged, so the cause is the 7 restored patients. Two
-possibilities, distinguished here:
-
-  (a) they are simply hard    -> AUC on the original 59 stays high, AUC on the 7
-                                 is poor, and the model itself is unharmed
-  (b) they corrupt the fit    -> AUC on the original 59 also falls
-
-Also reports where each restored patient lands in the ranking, and what happens
-if the restored non-responder (subject 56) is excluded.
-"""
+"""Relate internal and external agreement to cohort composition."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d')
@@ -55,16 +41,13 @@ for roi in ['higher', 'both']:
     a_old = roc_auc_score(bA[old], p[old]) if len(np.unique(bA[old])) > 1 else np.nan
     print(f"[{roi}]  LOO on all {len(bA)} -> AUC {a_all:.3f}")
     print(f"        same predictions, scored on the original 59 only -> {a_old:.3f}")
-    # train WITHOUT the restored patients, score the original 59 (reproduces the old setting)
     Zo, yo = Z[old], bA[old]
     po = loo(Zo, yo)
     print(f"        trained and scored on the original 59 only       -> {roc_auc_score(yo, po):.3f}")
-    # where do the restored patients rank?
     r = np.argsort(np.argsort(p))
     print(f"        restored patients' ranks (of {len(bA)}, higher = predicted responder):")
     for i in np.where(isnew)[0]:
         print(f"           subject {int(SA_[i]):3d}  rank {r[i]:2d}   {'responder' if bA[i] else 'NON-RESPONDER'}")
-    # drop only the restored non-responder
     keep = ~(isnew & (bA == 0))
     if keep.sum() < len(bA):
         pk = loo(Z[keep], bA[keep])

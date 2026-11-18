@@ -1,17 +1,6 @@
-"""Operating-point analysis: what specificity is attainable, and at what cost.
+"""Operating-point analysis of attainable specificity.
 
-Specificity is set by the decision threshold, not by the loss. AUC is
-threshold-free, so at a fixed AUC the only way to raise specificity is to move
-the cut and give up sensitivity. This maps the trade-off and compares threshold
-rules, all calibrated on MSW out-of-fold and applied unchanged to CHH:
-
-  balacc      maximise balanced accuracy            (what we have been using)
-  spec_at_X   maximise specificity s.t. sensitivity >= X
-  youden      maximise sensitivity + specificity - 1
-  prevalence  cut at the training responder rate
-
-usage: operating_point.py [nseeds]
-"""
+usage: operating_point.py [nseeds]"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -51,7 +40,6 @@ def gfit(Xtr, Ctr, ytr, Xte, Cte, seed, ep=200):
 
 
 def rules(y, p):
-    """threshold rules, all fitted on the TRAINING cohort only"""
     fpr, tpr, thr = roc_curve(y, p)
     spec, sens = 1 - fpr, tpr
     out = {}
@@ -88,7 +76,7 @@ for sd in range(NS):
     pb = gfit(s2.transform(SA), s3.transform(Ca), bA.astype(float),
               s2.transform(SB), s3.transform(Cb), sd)
     ext_auc.append(roc_auc_score(bB, pb))
-    for name, t in rules(bA, pr).items():        # calibrated on MSW
+    for name, t in rules(bA, pr).items():
         acc.setdefault(name, []).append(sc(bB, pb, t))
 
 print(f"external AUC {np.mean(ext_auc):.3f} +- {np.std(ext_auc):.3f}   "

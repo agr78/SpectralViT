@@ -12,9 +12,11 @@ spat_v_spect.ipynb
 unet_comp.ipynb
 zvit.ipynb
 
-# Launch scripts and docs live in `/spectralvit_kb/jobs`, not the repo
+# Cluster launch scripts are local only
 *.sbatch
+*.sh
 slurm/
+jobs/
 
 # Covariates
 docs/
@@ -25,7 +27,7 @@ __pycache__/
 # Experiment outputs
 results/
 # Datasets and caches: MedMNIST npz, the CIFAR batches, anything a sweep downloads or
-# stages. These belong on spacelink, not in the repo; data/ is only ever a staging point.
+# stages. These belong outside the repo; data/ is only ever a staging point.
 data/
 hcp_age_bak.txt
 dbs_3d/verify_5tests.ipynb
@@ -39,7 +41,7 @@ paper/
 #   paper/cvpr/fig/data/
 # Participant-level tables. hca_ages_raw.tsv and participants_hca.tsv are HCP-Aging
 # subject IDs with ages, which the NIMH Data Archive DUC does not permit redistributing,
-# and this repo is public. They belong on spacelink with the cohort data.
+# and this repo is public. They belong outside the repo with the cohort data.
 *.tsv
 # SLURM stdout dropped in the repo root by jobs run from here, and the .bak* snapshots the
 # sweeps leave when a config is swapped. Both are working residue: ~45 and ~25 files that
@@ -49,3 +51,6 @@ slurm-*.out
 
 # Working notes imported from another knowledge base; not part of the paper
 handoff_for_new_kb_*.md
+
+# Pre-strip copies of the code and its comments; working notes, never committed
+notes/

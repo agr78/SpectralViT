@@ -1,16 +1,8 @@
 """Cache HCA T1w volumes into a memmapped array the sweep can resample without disk reads.
 
-One scan per subject (earliest V visit, per participants_hca.tsv). The T1w is found by
-recursive glob inside each visit directory, so the internal layout does not matter.
-Volumes are center-cropped and z-scored per subject.
-
-Written row by row into a float16 memmap: np.stack would need the list and the output in
-memory at once, which is twice the array and will not fit. float16 is ample for z-scored
-intensities and halves both memory and disk.
-
 usage: python hca_cache.py [participants_hca.tsv] [out_prefix]
-  writes <prefix>.npy (volumes) and <prefix>_meta.npz (labels, ages, ids)
-"""
+  writes <prefix>.npy (volumes) and <prefix>_meta.npz (labels, ages, ids)"""
+from paths import RAW
 import os, sys, glob, re
 import numpy as np, pandas as pd
 import nibabel as nib
@@ -18,7 +10,7 @@ import nibabel as nib
 TSV = sys.argv[1] if len(sys.argv) > 1 else 'participants_hca.tsv'
 PRE = sys.argv[2] if len(sys.argv) > 2 else 'hca_vols_96'
 IMG = os.environ.get('HCA_IMG_DIR',
-                     '/autofs/vast/lemon/data_instantsurfer_uncurated/ahcp_data')
+                     f'{RAW}/ahcp_data')
 VOL = int(os.environ.get('HCA_VOL_SIZE', '96'))
 
 d = pd.read_csv(TSV, sep='\t')

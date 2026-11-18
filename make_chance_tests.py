@@ -1,12 +1,6 @@
 """Chance tests for every cell of table:ixi and table:hca-reg.
 
-table:ixi is AUC, so chance is 0.5 and the test is one-sided over the subsample draws.
-table:hca-reg is mean absolute error, where the chance reference is not a constant but the
-mean estimate already carried as the table's first row: predicting the cohort mean for
-every subject. Each model is therefore tested against that row, paired by draw.
-
-usage: python make_chance_tests.py
-"""
+usage: python make_chance_tests.py"""
 import os
 
 import numpy as np
@@ -17,12 +11,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'results', 'chance_tests.txt')
 IXI = os.environ.get('IXI_SWEEP_DIR', os.path.join(HERE, 'results', 'ixi_curve_merged'))
 SIZES = [25, 50, 100, 200, 566]
-# Draws per size, matching make_table_ixi.py: ten at the two smallest sizes, five above.
 DRAWS = {25: 10, 50: 10, 100: 5, 200: 5, 566: 5}
 ARMS = [('logreg', 'Logistic regression'), ('mlp', 'Multilayer perceptron'),
         ('unet', 'U-net with attention'), ('swin', 'Swin ViT'),
         ('spat', 'Spatial ViT'), ('spec', 'Spectral ViT (proposed)')]
-# cells of table:ixi NOT significantly above chance, as published
 PUB_IXI_NS = {('logreg', 25), ('mlp', 25), ('unet', 25), ('spat', 25), ('swin', 100)}
 
 

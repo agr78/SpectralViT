@@ -1,16 +1,6 @@
-"""One cell under leave-one-out CV, for the tests that failed or sat on the boundary.
+"""One cell under leave-one-out cross-validation.
 
-Tests 1 (family-wise null), 2 (pre-specified cell) and 4 (internal permutation)
-all depend on the internal estimate. Under 4-fold each model trains on 44 of 59
-patients with 3 non-responders, while the external model trains on all 59 with 4
--- which may be why internal (0.694) came in below external (0.799). LOO trains
-on 58 and removes that gap.
-
-Tests 3 and 5 are unaffected: both use the model trained on all 59, so the CV
-scheme does not enter.
-
-usage: loo_cell.py <ordering> <K> <weight> [nseeds]
-"""
+usage: loo_cell.py <ordering> <K> <weight> [nseeds]"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -68,7 +58,6 @@ def gfit(Xtr, Ctr, ytr, Xte, Cte, lam, seed, ep=1500):
 
 
 def loo_oof(X0, y, lam, seed):
-    """leave-one-out: each model trains on 58 patients"""
     pr = np.empty(len(y))
     for i in range(len(y)):
         tr = np.delete(np.arange(len(y)), i)

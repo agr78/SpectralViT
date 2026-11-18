@@ -1,3 +1,6 @@
+"""Shared utilities for seeding, classification and regression metrics, paired significance tests,
+mask-based volume cropping, log-scale curve smoothing, synthetic distance-shift data, and loss
+and reconstruction figures."""
 import torch
 import torch.nn.functional as F
 import os
@@ -16,7 +19,6 @@ def robust_flatten(img_np, target_dim):
     return resized.numpy().flatten()
 
 def compute_comprehensive_metrics(y_true, y_prob, threshold):
-    """Calculates performance metrics."""
     y_pred = (y_prob >= threshold).astype(int)
     tn, fp, fn, tp = confusion_matrix(y_true, y_pred, labels=[0, 1]).ravel()
     sens = recall_score(y_true, y_pred, zero_division=0)
@@ -33,28 +35,18 @@ def mean_std_str(values):
     return f"{np.mean(values):.3f} ± {np.std(values):.3f}"
 
 def delong_roc_variance(ground_truth, predictions):
-    """
-    Computes the structural components (V10 and V01) for DeLong's variance.
-    """
     m = sum(ground_truth == 1)
     n = sum(ground_truth == 0)
     
-    # Get scores of positives and negatives
     pos = predictions[ground_truth == 1]
     neg = predictions[ground_truth == 0]
     
-    # Compute structural components (V10 and V01)
-    # v10[i] captures how often negative samples score lower than the i-th positive sample
     v10 = np.array([np.sum(neg < p) + 0.5 * np.sum(neg == p) for p in pos]) / n
-    # v01[j] captures how often positive samples score higher than the j-th negative sample
     v01 = np.array([np.sum(pos > p) + 0.5 * np.sum(pos == p) for p in neg]) / m
     
     return v10, v01
 
 def compare_auc_significance(y_true, prob_base, prob_model):
-    """
-    Exact implementation of the DeLong test for two correlated ROC curves.
-    """
     y_true = np.array(y_true)
     prob_base = np.array(prob_base)
     prob_model = np.array(prob_model)
@@ -62,29 +54,24 @@ def compare_auc_significance(y_true, prob_base, prob_model):
     auc_base = roc_auc_score(y_true, prob_base)
     auc_model = roc_auc_score(y_true, prob_model)
     
-    # Get structural components
     v10_base, v01_base = delong_roc_variance(y_true, prob_base)
     v10_model, v01_model = delong_roc_variance(y_true, prob_model)
     
-    # Covariance matrices of the structural components
     S10 = np.cov(v10_base, v10_model)
     S01 = np.cov(v01_base, v01_model)
     
     m = sum(y_true == 1)
     n = sum(y_true == 0)
     
-    # DeLong variance of the difference (accounting for covariance)
     var_diff = (S10[0, 0] + S10[1, 1] - 2 * S10[0, 1]) / m + \
                (S01[0, 0] + S01[1, 1] - 2 * S01[0, 1]) / n
                
-    # Z-score and two-sided p-value
     z = (auc_model - auc_base) / np.sqrt(max(var_diff, 1e-8))
     p_value = 2 * (1 - stats.norm.cdf(abs(z)))
     
     return auc_model - auc_base, p_value
 
 def mask_crop(data, mask, pad, viz=False):
-    """Crop data using mask with optional padding."""
     z_idx = ~(mask == 0).all((0, 1))
     x_idx = ~(mask == 0).all((1, 2))
     y_idx = ~(mask == 0).all((0, 2))
@@ -124,7 +111,6 @@ def mask_crop(data, mask, pad, viz=False):
     return img
 
 def seed_everything(seed=42):
-    """Set random seeds for reproducibility."""
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
@@ -135,7 +121,6 @@ def seed_everything(seed=42):
     torch.backends.cudnn.benchmark = False
 
 def count_parameters(model):
-    """Count the number of trainable parameters in a model."""
     return sum(p.numel() for p in model.parameters() if p.requires_grad)
 
 def smooth_curve(x, y):
@@ -157,7 +142,7 @@ def plot_all_model_losses(spectral_vit_history,
     
     configs = [
             ('spectral_vit_loss', 'Spectral ViT', 'tab:blue', '-'),
-            ('spatial_vit_loss', 'Spatial ViT (Heavy)', 'tab:orange', '--'), # Check this key too!
+            ('spatial_vit_loss', 'Spatial ViT (Heavy)', 'tab:orange', '--'),
             ('compact_spatial_vit_loss', 'Spatial ViT (Matched)', 'tab:green', '--'),
             ('swin_loss', 'Swin ViT', 'tab:purple', '-.'),
             ('unet_loss', 'Attn U-Net', 'tab:red', ':'),
@@ -183,7 +168,6 @@ def plot_all_model_losses(spectral_vit_history,
     plt.show()
 
 def get_metrics_array(y_true, y_probs):
-    """Calculate metrics for a set of predictions."""
     preds = (y_probs > 0.5).astype(int)
     tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
     acc = (tp + tn) / len(y_true)
@@ -208,10 +192,6 @@ def plot_all_model_losses_regression(spectral_vit_history,
                                       compact_spatial_vit_history,
                                       unet_history, swin_history,
                                       EPOCHS, loss_name='MSE'):
-    """
-    Regression counterpart of plot_all_model_losses. Age-prediction losses (MSE/MAE)
-    have no fixed [0, 1] range the way BCE does, so the y-axis is left to autoscale.
-    """
     combined = {**spectral_vit_history, **spatial_vit_history, **compact_spatial_vit_history,
                 **unet_history, **swin_history}
     plt.figure(figsize=(12, 7))
@@ -243,11 +223,6 @@ def plot_all_model_losses_regression(spectral_vit_history,
     plt.show()
 
 def get_metrics_array_regression(y_true, y_pred):
-    """
-    Regression counterpart of get_metrics_array: MAE and RMSE (in years), R^2, and
-    Pearson r between predicted and chronological age -- the standard quartet
-    reported in brain-age papers, in place of Accuracy/Sensitivity/Specificity/AUC.
-    """
     y_true = np.asarray(y_true).ravel()
     y_pred = np.asarray(y_pred).ravel()
     mae = mean_absolute_error(y_true, y_pred)
@@ -260,11 +235,6 @@ def get_metrics_array_regression(y_true, y_pred):
     return np.array([mae, rmse, r2, r])
 
 def paired_ttest_abs_error(y_true, pred_a, pred_b):
-    """
-    Regression analog of McNemar's test: a paired t-test on each model's per-subject
-    absolute error, asking whether model A's errors are systematically larger or
-    smaller than model B's on the *same* held-out subjects.
-    """
     y_true = np.asarray(y_true).ravel()
     err_a = np.abs(np.asarray(pred_a).ravel() - y_true)
     err_b = np.abs(np.asarray(pred_b).ravel() - y_true)
@@ -272,14 +242,6 @@ def paired_ttest_abs_error(y_true, pred_a, pred_b):
     return float(stat), float(p_value)
 
 def paired_bootstrap_mae_test(y_true, pred_a, pred_b, n_boot=2000, seed=0):
-    """
-    Regression analog of DeLong's test: a paired bootstrap over the held-out subjects
-    (resampling subjects, not errors independently) to test whether the difference in
-    MAE between two models is larger than expected from sampling noise alone. This
-    respects the correlation between the two models' errors the same way DeLong's
-    test respects correlated ROC curves, without needing a closed-form variance
-    formula for MAE.
-    """
     rng = np.random.RandomState(seed)
     y_true = np.asarray(y_true).ravel()
     pred_a = np.asarray(pred_a).ravel()
@@ -306,28 +268,22 @@ def generate_distance_data(n_samples, VOL_SIZE, swapped=False):
     
     for i in range(n_samples):
         label = Y[i]
-        # Class 0: Close (4), Class 1: Far (12)
         dist = 4 if label == 0 else 12
         
         if not swapped:
-            # Training distribution: Class 0 Left, Class 1 Right
             start_x = np.random.randint(2, 6) if label == 0 else np.random.randint(14, 18)
         else:
-            # Testing distribution: Class 0 Right, Class 1 Left
             start_x = np.random.randint(14, 18) if label == 0 else np.random.randint(2, 6)
         y, z = np.random.randint(10, 20, size=2)
-        # 3x3x3 cubes
         X[i, 0, start_x:start_x+3, y:y+3, z:z+3] = 1.0
         X[i, 0, start_x+dist:start_x+dist+3, y:y+3, z:z+3] = 1.0
         
     return X, Y
 
 def plot_obj_detect(VOL_SIZE):
-    # Generate samples
     X_train, Y_train = generate_distance_data(10, VOL_SIZE=VOL_SIZE, swapped=False)
     X_test, Y_test = generate_distance_data(10, VOL_SIZE=VOL_SIZE, swapped=True)
 
-    # Find one of each class from train and test
     idx_t0 = (Y_train == 0).nonzero()[0].item()
     idx_t1 = (Y_train == 1).nonzero()[0].item()
     idx_s0 = (Y_test == 0).nonzero()[0].item()
@@ -340,8 +296,6 @@ def plot_obj_detect(VOL_SIZE):
     fig, axes = plt.subplots(2, 4, figsize=(10, 5), facecolor='white')
     
     for i, (vol, title) in enumerate(zip(samples, titles)):
-        # 1. SPATIAL VIEW: Use Max Projection instead of a single slice
-        # This ensures we see the dots regardless of where they are in 3D
         spatial_proj = torch.max(vol[0], dim=1)[0].numpy()
         
         axes[0, i].imshow(spatial_proj, cmap='hot', vmin=0, vmax=1)
@@ -349,14 +303,11 @@ def plot_obj_detect(VOL_SIZE):
         axes[0, i].set_xticks([])
         axes[0, i].set_yticks([])
 
-        # 2. FOURIER VIEW: 2D FFT of the projection
         f = torch.fft.fft2(torch.from_numpy(spatial_proj))
         f_shift = torch.fft.fftshift(torch.abs(f))
-        # Use a small epsilon and log scale to see the fringes
         f_mag = torch.log(f_shift + 1e-3).numpy()
         
         axes[1, i].imshow(f_mag, cmap='viridis')
-        #axes[1, i].set_title("Fourier tokenization", fontsize=20)
         axes[1, i].set_xticks([])
         axes[1, i].set_yticks([])
 
@@ -364,11 +315,9 @@ def plot_obj_detect(VOL_SIZE):
     axes[0,0].set_ylabel('Image \nspace',fontsize=20)
     axes[1,0].set_ylabel('Fourier \nspace',fontsize=20)
     
-    # Add centered labels at the bottom for Train and Test groups
     fig.text(0.31, 0.02, 'Training distribution', ha='center', fontsize=14, fontweight='bold')
     fig.text(0.71, 0.02, 'Testing distribution', ha='center', fontsize=14, fontweight='bold')
 
-    # Use rect to prevent tight_layout from overlapping the suptitle and bottom labels
     plt.tight_layout(rect=[0, 0.05, 1, 0.95])
     plt.show()
 
@@ -415,8 +364,6 @@ from sklearn.metrics import roc_auc_score
 
 
 def delong_roc_variance(y_true, predictions):
-    """Computes the structural components (V10 and V01) underlying DeLong's
-    variance estimator for the AUC of a single set of predictions."""
     y_true = np.asarray(y_true)
     predictions = np.asarray(predictions)
     m = np.sum(y_true == 1)
@@ -431,9 +378,6 @@ def delong_roc_variance(y_true, predictions):
 
 
 def compute_delong_paired(y_true, preds_baseline, preds_model):
-    """Paired DeLong test for ROC AUC comparison, using rank-based structural
-    components and their covariance across two correlated ROC curves. Uses
-    the survival function to retain precision for extreme p-values."""
     y_true = np.asarray(y_true)
     auc_base = roc_auc_score(y_true, preds_baseline)
     auc_mod = roc_auc_score(y_true, preds_model)
@@ -457,8 +401,6 @@ def compute_delong_paired(y_true, preds_baseline, preds_model):
 
 
 def compute_mcnemar(y_true, preds_base_bin, preds_mod_bin):
-    """McNemar's test with continuity correction, using the survival
-    function to retain precision for extreme p-values."""
     y_true = np.asarray(y_true)
     b = np.sum((preds_base_bin == y_true) & (preds_mod_bin != y_true))
     c = np.sum((preds_base_bin != y_true) & (preds_mod_bin == y_true))

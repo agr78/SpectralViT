@@ -1,14 +1,5 @@
-"""Three follow-ups on synapse.
-
-1. Does the log compression explain why a complete DCT loses to raw voxels? A complete
-   block DCT is an orthogonal rotation and L2 logistic regression is rotation-invariant,
-   so 'DCT complete, linear' MUST match raw voxels. If it does and the log version does
-   not, the compression is the cause, not the basis.
-2. Why do patch means beat raw voxels? Averaging is a low-pass filter and a 8x dimension
-   cut, so it may simply be denoising. Sweeping the patch side separates "locality helps"
-   from "fewer, smoother features help".
-3. The overlapping DCT was never probed; it is included here at matched coefficient count.
-"""
+"""Follow-up probes on SynapseMNIST3D."""
+from paths import DATA
 import numpy as np
 from scipy import fft
 from sklearn.preprocessing import StandardScaler
@@ -16,7 +7,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from sklearn.metrics import roc_auc_score
 
-Z = np.load('/workspace/data/medmnist/synapsemnist3d.npz')
+Z = np.load(f'{DATA}/medmnist/synapsemnist3d.npz')
 X = Z['train_images'].astype(np.float32); y = Z['train_labels'].ravel()
 X = (X - X.mean()) / X.std()
 SIDE = 14

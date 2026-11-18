@@ -1,7 +1,6 @@
-"""One chunk of LOO label permutations, for test 4 against the LOO observed value.
+"""One chunk of leave-one-out label permutations.
 
-usage: loo_perm.py <ordering> <K> <weight> <chunk_id> <n_perms>
-"""
+usage: loo_perm.py <ordering> <K> <weight> <chunk_id> <n_perms>"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d', 'loo'); os.makedirs(OUT, exist_ok=True)

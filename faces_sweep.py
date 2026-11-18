@@ -1,27 +1,7 @@
 """LFW identity classification by training-set size: the aligned natural-image test.
 
-CIFAR showed the spectral advantage does not survive on unregistered natural images, and
-the diagnostic reason was spatial correspondence: PCA on flattened pixels is only
-meaningful if coordinate k refers to the same thing in every image. Brain volumes satisfy
-that through registration; photographs of objects at arbitrary pose do not.
-
-Aligned faces are the case that separates "natural images" from "no spatial
-correspondence", and they are the oldest precedent for it -- eigenfaces is the canonical
-demonstration that a global linear basis works on aligned photographs. If the advantage is
-about correspondence rather than about medical imaging, it should appear here.
-
-LFW 'funneled' images are aligned. Ten images per identity are held out as a fixed test set
-(every identity has at least twenty), so the test set is balanced and seed independent, and
-training draws come from the remainder.
-
-The spectral arm defaults to the component-wise embedding of sec:ca (use_mode_weights),
-which on MNIST is worth roughly twice what the chunked projection gives; FACES_MODE=0 falls
-back to chunks for comparison. A parameter-matched MLP on the identical components is
-carried as a control, since on CIFAR it beat both transformers.
-
-env: FACES_COMP FACES_SEEDS FACES_PER_CLASS FACES_MODE FACES_RANK FACES_OUT FACES_HOME
-usage: python faces_sweep.py [--smoke]
-"""
+usage: python faces_sweep.py [--smoke]"""
+from paths import DATA
 import os, sys, time
 import numpy as np, pandas as pd, torch, torch.nn as nn, torch.optim as optim
 import torch.nn.functional as F
@@ -37,18 +17,10 @@ from torch.utils.data import DataLoader, TensorDataset
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from networks import MultiClassSpectralViT, MultiClassSpatialViT
 
-# Token-identity switches; defaults reproduce every result already on disk.
-_POS = os.environ.get('FACES_POS', '1') != '0'  # FACES_RANK already exists below
-
+_POS = os.environ.get('FACES_POS', '1') != '0'
 
 
 def overlap_tokens(x, block, stride):
-    """Overlapping block-DCT tokens, indexed by position so weight sharing is valid.
-
-    Duplicated from cifar_sweep.py, matching how the volumetric scripts each carry their own
-    feature machinery. Taken at a stride below its support the transform is overcomplete and
-    therefore not a per-patch invertible map, so a learned projection cannot absorb it.
-    """
     x = x.numpy() if hasattr(x, 'numpy') else x
     B, C, H, W = x.shape
     ys = range(0, H - block + 1, stride)
@@ -60,20 +32,17 @@ def overlap_tokens(x, block, stride):
     return co.reshape(B, -1).astype(np.float32)
 
 SMOKE = '--smoke' in sys.argv
-HOME = os.environ.get('FACES_HOME', '/agent-home/sk_data')
+HOME = os.environ.get('FACES_HOME', f'{DATA}/sk_data')
 N_SEEDS = 2 if SMOKE else int(os.environ.get('FACES_SEEDS', 5))
 N_COMP = int(os.environ.get('FACES_COMP', 16))
 PER_CLASS = [1, 2] if SMOKE else [int(v) for v in
                                   os.environ.get('FACES_PER_CLASS', '1,2,3,5,10').split(',')]
 EPOCHS, BATCH, LR, WD = (2 if SMOKE else 100), 128, 1e-3, 0.01
 SIZE, PATCH, TEST_PER_CLASS = 48, 4, 10
-OVERLAP = os.environ.get('FACES_OVERLAP') == '1'   # 4x4 DCT at stride 2, position tokens
+OVERLAP = os.environ.get('FACES_OVERLAP') == '1'
 SPEC_KW = {}
 if os.environ.get('FACES_MODE', '1') == '1': SPEC_KW['use_mode_weights'] = True
 if os.environ.get('FACES_RANK', '0') == '1': SPEC_KW['use_rank_weights'] = True
-# The overlap tokenizer depends on a projection SHARED across position tokens; mode
-# weights would instead give one token per coefficient, which is the opposite design
-# and would make thousands of tokens. They are mutually exclusive.
 if OVERLAP:
     SPEC_KW.pop('use_mode_weights', None)
 OUT = os.environ.get('FACES_OUT', os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -85,7 +54,6 @@ dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 class FeatureMLP(nn.Module):
-    """Two hidden layers on the same components the spectral arm receives."""
     def __init__(self, input_dim, hidden, num_classes):
         super().__init__()
         self.net = nn.Sequential(nn.Linear(input_dim, hidden), nn.ReLU(),
@@ -102,17 +70,6 @@ def match_hidden(input_dim, num_classes, target):
 
 
 def eigenfaces(Ztr, ytr, Zte, ncls):
-    """Eigenfaces: nearest neighbours in the PCA subspace the spectral arm already uses.
-
-    This is Turk and Pentland's method, not a new baseline -- the spectral arm on LFW is
-    PCA of the faces, so 1-NN on those same coefficients IS eigenfaces, and the margin over
-    it is what separates the encoder from a representation that predates it by decades.
-
-    k is chosen by inner stratified CV over the training subsample alone. At one image per
-    identity no split leaves a neighbour of the right class, so k falls back to 1, which is
-    the classical rule anyway. predict_proba on k neighbours is coarse (steps of 1/k), so
-    top-1 is the metric to read here and AUC is reported only for completeness.
-    """
     Xtr, Xte = Ztr.numpy(), Zte.numpy()
     counts = np.bincount(ytr, minlength=ncls)
     nmin = counts[counts > 0].min()
@@ -142,12 +99,9 @@ def metrics(probs, y_true, ncls):
             'AUC': roc_auc_score(y_true, probs, multi_class='ovr', labels=lab)}
 
 
-# ---------------------------------------------------------------- data
 d = fetch_lfw_people(min_faces_per_person=20, resize=0.5, funneled=True, data_home=HOME)
 imgs, y = d.images.astype(np.float32), d.target
 NCLS = len(d.target_names)
-# Square center crop to the narrower axis, then one resize, so every image is SIZE^2 and
-# the spatial arm's patch grid divides evenly.
 h, w = imgs.shape[1:]
 s = min(h, w)
 imgs = imgs[:, (h - s) // 2:(h - s) // 2 + s, (w - s) // 2:(w - s) // 2 + s]
@@ -157,7 +111,6 @@ X = (X - X.mean()) / X.std()
 print(f'LFW {len(X)} aligned faces, {NCLS} identities, {SIZE}^2 on {dev}; '
       f'{N_COMP} comp, spec {SPEC_KW or "chunked"}', flush=True)
 
-# A fixed, balanced, seed-independent test set: the first TEST_PER_CLASS of each identity.
 te_idx, pool = [], {}
 for c in range(NCLS):
     ix = np.where(y == c)[0]

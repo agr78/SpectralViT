@@ -1,18 +1,4 @@
-"""Concat-token attention with a basis-dependent rank prior.
-
-Spectral coefficients and clinical covariates are each one scalar token; a single
-self-attention layer runs over the joint set, mean-pooled to a linear head, plus a
-linear residual on the raw concatenated vector so the model can fall back to plain
-concatenation.
-
-The rank weight omega_i multiplies each spectral coefficient before embedding:
-
-  none      omega_i = 1
-  inv       omega_i = 1/i                  (the PCA form: eigenvalue decay)
-  lap       omega_i = exp(-tau * lambda_i) (the Laplacian form)
-  lap_tau   as above with tau learned
-  learned   omega_i free, initialised at 1/i
-"""
+"""Concat-token attention with a basis-dependent rank prior."""
 import torch
 import torch.nn as nn
 

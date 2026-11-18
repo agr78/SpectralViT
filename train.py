@@ -1,22 +1,11 @@
+"""Balanced-accuracy threshold calibration and checkerboard-versus-noise synthetic sample
+generation."""
 import numpy as np
 import torch
 from sklearn.metrics import balanced_accuracy_score
 
 
 def calibrate_balanced(model, attn, X_v, y_v, device):
-    """
-    Calibrate decision threshold for balanced accuracy.
-    
-    Args:
-        model: The model to evaluate
-        attn: Optional attention module
-        X_v: Validation features
-        y_v: Validation labels
-        device: Device to run on
-        
-    Returns:
-        best_t: Optimal threshold for balanced accuracy
-    """
     model.eval()
     if attn:
         attn.eval()
@@ -33,20 +22,6 @@ def calibrate_balanced(model, attn, X_v, y_v, device):
 
 
 def train_epoch(model, loader, optimizer, criterion, device, accumulation_steps=1):
-    """
-    Train model for one epoch with gradient accumulation.
-    
-    Args:
-        model: Model to train
-        loader: DataLoader
-        optimizer: Optimizer
-        criterion: Loss function
-        device: Device to run on
-        accumulation_steps: Number of steps to accumulate gradients
-        
-    Returns:
-        avg_loss: Average loss for the epoch
-    """
     model.train()
     total_loss = 0
     n_batches = 0
@@ -54,12 +29,10 @@ def train_epoch(model, loader, optimizer, criterion, device, accumulation_steps=
     for i, (x, y) in enumerate(loader):
         x, y = x.to(device), y.to(device)
         
-        # Forward pass
         logits = model(x)
         loss = criterion(logits, y) / accumulation_steps
         loss.backward()
         
-        # Update weights every accumulation_steps
         if (i + 1) % accumulation_steps == 0:
             optimizer.step()
             optimizer.zero_grad()
@@ -67,7 +40,6 @@ def train_epoch(model, loader, optimizer, criterion, device, accumulation_steps=
         total_loss += loss.item() * accumulation_steps
         n_batches += 1
     
-    # Final step if needed
     if n_batches % accumulation_steps != 0:
         optimizer.step()
         optimizer.zero_grad()
@@ -76,18 +48,6 @@ def train_epoch(model, loader, optimizer, criterion, device, accumulation_steps=
 
 
 def evaluate_model(model, loader, device):
-    """
-    Evaluate model on a dataset.
-    
-    Args:
-        model: Model to evaluate
-        loader: DataLoader
-        device: Device to run on
-        
-    Returns:
-        probs: Predicted probabilities
-        labels: True labels
-    """
     model.eval()
     all_probs = []
     all_labels = []
@@ -103,7 +63,6 @@ def evaluate_model(model, loader, device):
     return np.concatenate(all_probs), np.concatenate(all_labels)
 
 
-# Checkerboard Generator
 def generate_checkerboard_data(n_samples, img_size=28, noise_level=1.0):
     images, labels = [], []
     for _ in range(n_samples):

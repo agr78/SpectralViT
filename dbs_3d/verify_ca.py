@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)
@@ -14,7 +14,6 @@ from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import StratifiedKFold
 src=open(os.path.join(SPDIR,'concat_attn.py')).read(); exec(src.split("rows=[]")[0])
 D=pickle.load(open(os.path.join(OUT, 'concat_attn_preds.pkl'),'rb')); PRED,bB=D['PRED'],D['bB']
-# 1. family-wise null over the 30 cells
 ks=list(PRED); R=np.array([rankdata(PRED[k]) for k in ks])
 n=len(bB); n1=int(bB.sum()); n0=n-n1
 auc=lambda y:(R@y-n1*(n1+1)/2)/(n1*n0)
@@ -29,7 +28,6 @@ print(f"  pre-specified cell 3DDCT/16/typ_resid external {o_:.3f}   single-test 
 pg=PRED[('3DgraphLap',8,'typ_resid')]; og=roc_auc_score(bB,pg)
 nlg=np.array([roc_auc_score(bB[rng.permutation(n)],pg) for _ in range(5000)])
 print(f"  best-external cell 3DgraphLap/8/typ_resid external {og:.3f}   single-test p = {(nlg>=og).mean():.3f}")
-# 2. internal permutation + seed stability for that cell
 X0=basis3(VA,'3DDCT',16); X1=basis3(VB,'3DDCT',16)
 def run(y,seed):
     pr=np.full(len(y),np.nan)

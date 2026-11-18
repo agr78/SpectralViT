@@ -1,15 +1,12 @@
 """Survey participants.tsv across the BIDS datasets: rows, age and sex completeness.
 
-Reads only the small metadata files by explicit path -- no directory walking, so the
-automounter is touched once per dataset.
-
-usage: python bids_survey.py
-"""
+usage: python bids_survey.py"""
+from paths import RAW
 import os, re
 import pandas as pd
 
-ROOT = '/autofs/vast/lemon/data_instantsurfer_uncurated'
-EXTRA = ['/autofs/vast/lemon/datasets/ABIDE_full/participants.tsv']
+ROOT = RAW
+EXTRA = [f'{RAW}/ABIDE_full/participants.tsv']
 sets = ['ABIDE','ADHD200','ADNI3','AIBL','ATLAS','BAGhDAD','Buckner40','COBRE',
         'Chinese-HCP','HCP','MCIC','MGH-PACS-SynthSR','OASIS3','PPMI']
 

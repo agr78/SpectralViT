@@ -1,15 +1,6 @@
-"""Full metric table for one model, corrected 66-patient cohort.
+"""Full metric table for one model.
 
-Reports AUC, accuracy, balanced accuracy, sensitivity, specificity, PPV, NPV and
-F1, internal and external, with the decision threshold calibrated on the MSW
-leave-one-out predictions only -- never on CHH.
-
-Specificity is quantised: 5 non-responders internally (steps of 0.2), 3
-externally (steps of 1/3). Confusion counts are reported so that granularity is
-visible rather than hidden behind a mean.
-
-usage: metrics_worker.py <model> <K> <nseeds>
-"""
+usage: metrics_worker.py <model> <K> <nseeds>"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d', 'metrics'); os.makedirs(OUT, exist_ok=True)
@@ -22,13 +13,12 @@ from sklearn.metrics import (roc_auc_score, balanced_accuracy_score, f1_score,
                              accuracy_score, confusion_matrix)
 
 MODEL, K, NS = sys.argv[1], int(sys.argv[2]), int(sys.argv[3])
-_argv = sys.argv; sys.argv = [_argv[0], 'cell', MODEL, str(K), '1']   # the prefix parses these
+_argv = sys.argv; sys.argv = [_argv[0], 'cell', MODEL, str(K), '1']
 exec(open(os.path.join(SPDIR, 'sc_worker.py')).read().split('t0 = time.time()')[0])
 sys.argv = _argv
 
 
 def calibrate(y, p):
-    """threshold maximising balanced accuracy on the TRAINING cohort only"""
     ts = np.unique(np.concatenate([p, np.linspace(p.min(), p.max(), 300)]))
     best, bt = -1, float(np.median(p))
     for t in ts:
@@ -53,9 +43,9 @@ def full(y, p, thr):
 t0 = time.time()
 I, E, thrs = [], [], []
 for sd in range(NS):
-    pr = loo(bA, sd)                                   # MSW leave-one-out
-    pb = predict(np.arange(len(bA)), 'EXT', bA, sd)    # trained on all MSW
-    thr = calibrate(bA, pr)                            # MSW only
+    pr = loo(bA, sd)
+    pb = predict(np.arange(len(bA)), 'EXT', bA, sd)
+    thr = calibrate(bA, pr)
     I.append(full(bA, pr, thr)); E.append(full(bB, pb, thr)); thrs.append(thr)
 
 agg = lambda S, k: (float(np.mean([d[k] for d in S])), float(np.std([d[k] for d in S])))

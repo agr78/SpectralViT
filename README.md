@@ -1,14 +1,18 @@
+<img alt="Three spectral vision transformers trained from scratch on 100 ADNI3 subjects each, shown on held-out subjects. Top row: each subject reconstructed from principal components, block cosine coefficients and surface graph Laplacian modes. Bottom row: each model's attention projected to the image for sex classification, age estimation and cognitive status." src="spectralViT_adni3.gif">
+
+<sub>Held-out ADNI3 subjects; code in <a href="demo.ipynb"><code>demo.ipynb</code></a>. Data used in this figure were obtained from the Alzheimer's Disease Neuroimaging Initiative (ADNI) database (adni.loni.usc.edu).</sub>
+
 # Spectral Vision Transformer
 
 Repository for [_Spectral Vision Transformer for Efficient Tokenization with Limited Data_](https://openreview.net/pdf?id=cH5gmxBepK).
+
+## Summary
+Efficient image tokenization using projections on to spectral bases to reduce the number of parameters associated with fitting vision transformers.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="spectralViT_dark.png">
   <img alt="Our proposed spectral ViT differs primarily from conventional ViTs by constructing spectral rather than spatial tokens. Spectral tokens from any ordered basis possess inherent rank or hierarchical order. Our approach introduces a global inductive bias and spectral positional embeddings by mode rather than local patch embedding. Tinted cells carry learned weights. The spatial ViT must learn its projection, whereas the spectral projection is fixed, leaving only the rank weights and the positional embeddings to be learned." src="spectralViT.png">
 </picture>
-
-## Summary
-Efficient image tokenization using projections on to spectral bases to reduce the number of parameters associated with fitting vision transformers.
 
 ## Install
 The `dpeekenv` can be installed from `dpeekenv.yml` or
@@ -20,6 +24,7 @@ Sample size varying pattern classifications can be found in [`pattern.ipynb`](ht
 The spatially invariant Fourier basis example can be found in [`objects.ipynb`](https://github.com/agr78/SpectralViT/blob/main/spatial_invariance.ipynb) <br/>
 Sex classification for all models can be found in [`ixi.ipynb`](https://github.com/agr78/SpectralViT/blob/main/ixi.ipynb) <br/>
 Candidate selection can be found in [`dbs.ipynb`](https://github.com/agr78/SpectralViT/blob/main/dbs.ipynb) <br/>
+The three-task ADNI3 demo in the figure above can be found in [`demo.ipynb`](https://github.com/agr78/SpectralViT/blob/main/demo.ipynb) <br/>
 
 ## Publications
 If this code is used, please cite the following:

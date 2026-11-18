@@ -1,13 +1,5 @@
-"""Can a linear probe on the 25 training volumes pick the right tokenizer?
-
-Honest by construction: for each (dataset, seed) the probe sees only the same 25 volumes
-the ViT trains on, scored by repeated inner CV inside them. Everything data-dependent --
-the PCA basis, the scalers -- is fit on the inner-train rows alone. The MedMNIST test
-split is never opened here; it enters only afterwards, when the arm the probe chose is
-looked up in the ViT results that were already computed.
-
-Compared against fixing pca_energy, the best single arm, on the same cells.
-"""
+"""Whether a linear probe on the training volumes can pick the tokenizer."""
+from paths import DATA, RESULTS
 import numpy as np, pandas as pd, os, sys
 from scipy import fft
 from sklearn.decomposition import PCA
@@ -18,8 +10,8 @@ from sklearn.feature_selection import mutual_info_classif
 
 NCLS={'organmnist3d':11,'nodulemnist3d':2,'adrenalmnist3d':2,
       'fracturemnist3d':3,'vesselmnist3d':2,'synapsemnist3d':2}
-PATH=lambda d: ('/agent-home/medmnist/organmnist3d.npz' if d=='organmnist3d'
-                else f'/workspace/data/medmnist/{d}.npz')
+PATH=lambda d: (f'{DATA}/medmnist/organmnist3d.npz' if d=='organmnist3d'
+                else f'{DATA}/medmnist/{d}.npz')
 SIDE, NB, REP = 14, 12, 4
 ARMS=['pca16','dct','energy','pca_energy','concat','energy_cat','dct_energy','square']
 
@@ -56,7 +48,6 @@ def bandE(V):
 
 
 def build(arm, Vfit, Vapp, D_fit, D_app, E_fit, E_app):
-    """Fit anything data-dependent on Vfit/D_fit/E_fit only."""
     f=Vfit.reshape(len(Vfit),-1)
     parts_fit, parts_app = [], []
     if arm.startswith('pca') or arm in ('concat','energy_cat','square'):
@@ -93,11 +84,6 @@ for ds,ncls in NCLS.items():
         Dall,Eall=dct_blocks(Xs,3),bandE(Xs)
         cnt=np.bincount(ys,minlength=ncls); k=max(2,min(5,int(cnt[cnt>0].min())))
         for arm in ARMS:
-            # Model-free alternative to the probe: mutual information between each
-            # tokenized feature and the label. Reported four ways because the obvious
-            # one is biased -- summing per-feature MI rewards more features regardless
-            # of how redundant they are, so an arm with 464 coefficients beats one with
-            # 16 by construction. Everything is fit on the same 25 volumes the ViT sees.
             A, _ = build(arm, Xs, Xs, Dall, Dall, Eall, Eall)
             mi = mutual_info_classif(A, ys, random_state=0, n_neighbors=3)
             srt = np.sort(mi)[::-1]
@@ -107,5 +93,5 @@ for ds,ncls in NCLS.items():
             print('%-17s s%d %-12s feats %4d  sum %6.2f mean %.4f max %.3f top16 %.3f'
                   % (ds, seed, arm, A.shape[1], mi.sum(), mi.mean(), srt[0],
                      srt[:16].mean()), flush=True)
-pd.DataFrame(rows).to_csv('/workspace/results/mi_select.csv',index=False)
+pd.DataFrame(rows).to_csv(f'{RESULTS}/mi_select.csv',index=False)
 print('\nwrote results/mi_select.csv')

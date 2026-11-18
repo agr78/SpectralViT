@@ -1,20 +1,6 @@
 """Regenerate the rank weight ablation figures quoted in sec:rankabl.
 
-Three arms share the basis, tokenization and encoder and differ only in the rank weights:
-omitted (hcp), imposed at 1/i (fixrank), and imposed then trained (rank).
-
-The source file per sample size is pinned below rather than globbed. Globbing was how the
-published numbers went wrong: results/regress holds two epoch budgets for the same sizes,
-and the quoted figures turned out to come from the earlier one while table:hca-reg used
-the 500-epoch runs, so the ablation and the main table disagreed -- 0.97 against 2.28
-years at n=1000. The selection here is the one that reproduces the table's proposed row
-(7.64, 7.05, 6.20, 5.88, 5.23), which is asserted below so drift fails loudly.
-
-Per combine_hca_10seed.py: n=25 and n=50 have ten seeds in the combined _ep500_10s file,
-while n=100, n=200 and n=1000 have five and live in per-seed files.
-
-usage: python make_rankabl_report.py
-"""
+usage: python make_rankabl_report.py"""
 import os
 
 import numpy as np
@@ -36,19 +22,14 @@ ARMS = {'omit': 'SpectralViT hcp (Block-DCT)',
         'trained': 'SpectralViT rank (Block-DCT)',
         'mean': 'MeanBaseline'}
 SIZES = [25, 50, 100, 200, 1000]
-# table:hca-reg's proposed row. The trained arm is that row, so a mismatch means the
-# source selection has drifted away from what the main table reports.
 TABLE_ROW = [7.64, 7.05, 6.20, 5.88, 5.23]
 
 
 def size(paths):
-    """Mean MAE per arm over seeds, each seed summarized by its mean over folds."""
     cell = {}
     for p in paths:
         d = pd.read_csv(p)
         d = d[d.MAE.notna()]
-        # One entry per (arm, seed): the same seed appears in more than one file for some
-        # sizes, and pooling folds across files would silently reweight it.
         for (model, seed), g in d.groupby(['Model', 'Seed']):
             cell[(model, int(seed))] = g.MAE.mean()
     out = {k: float(np.mean([v for (m, _), v in cell.items() if m == a]))

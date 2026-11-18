@@ -1,12 +1,4 @@
-"""Does cross-validation choose the right basis for each DATASET, rather than each draw?
-
-Per-cell selection failed because the inner score is not reproducible across its own
-folds. Averaging the score over the five seeds of a dataset cuts that noise by sqrt(5),
-and one basis per dataset is what would actually be shipped, so it is the question that
-matters. Two versions are reported: the pooled one, which averages all five seeds and so
-uses each seed's own CV score, and a leave-one-seed-out one, which chooses the basis from
-four seeds and evaluates it on the fifth, so no seed contributes to its own selection.
-"""
+"""Cross-validate the basis per dataset rather than per draw."""
 import glob, os
 import numpy as np, pandas as pd
 from scipy.stats import spearmanr, ttest_rel

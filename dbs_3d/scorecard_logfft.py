@@ -1,22 +1,6 @@
-"""Five-test scorecard for `both` + log|FFT| on the corrected 66-patient cohort.
+"""Five-test scorecard for the both-nuclei log-magnitude configuration.
 
-Pre-specified space, fixed before looking at any external number:
-  ROI    both (two nuclei concatenated) -- best on the corrected cohort
-  basis  log|FFT|, lambda-sorted modes
-  K      {8, 16, 32}
-  omega  none -- excluded on principle: the clinical covariates already supply
-         the structure a rank prior would encode
-  -> 3 cells; the cell is chosen on seed-averaged LOO internal AUC only.
-
-Tests
-  1 family-wise null over the 6 cells
-  2 pre-specified cell, external read once
-  3 seed stability over independent initialisations
-  4 internal permutation, full LOO refit per permutation
-  5 imaging ablation at test time
-
-usage: scorecard_logfft.py [nseeds] [nperm]
-"""
+usage: scorecard_logfft.py [nseeds] [nperm]"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d')
@@ -75,8 +59,6 @@ def loo_ext(ZA, ZB, DA, DB, y, lam, w, seed):
     return roc_auc_score(y, pr), pb, m
 
 
-# omega fixed to none: the clinical covariates supply the structure a rank
-# prior would encode, so it is excluded from the space rather than searched
 CELLS = list(itertools.product([8, 16, 32], ['none']))
 res = {}
 print(f"{'K':>3} {'omega':6s} {'LOO int':>9} {'ext':>9}")

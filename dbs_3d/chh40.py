@@ -1,15 +1,4 @@
-"""Recover the three CHH cases with missing masks, for harmonization and regression.
-
-Subjects 12, 15 and 17 have all-ones masks (294912 voxels = the whole 64x64x72
-volume), so the SN/STN centroid cannot be taken from their own segmentation.
-All CHH volumes sit in the same resampled grid, so the population-mean centroid
-from the other 37 gives a usable crop box.
-
-They are all responders, so they do not help the 3-non-responder limit on
-classification. They do help regression (40 patients contributing to a
-correlation instead of 37) and they add samples to the covariance estimate that
-CORAL-style harmonisation depends on.
-"""
+"""Recover the CHH cases with missing masks, for harmonization and regression."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -56,9 +45,6 @@ for s in sorted(ds.volumes):
 
 cents = np.array(cents)
 print(f"CHH: {len(good)} with usable masks, {len(missing)} without ({missing})")
-# the x-centroid is bimodal: we pick the higher-susceptibility side per patient,
-# so it sits left for some subjects and right for others. Averaging lands between
-# the nuclei. Split into the two clusters instead.
 xm = cents[:, 0]
 split = np.median(xm)
 left = np.round(cents[xm <= split].mean(0)).astype(int)
@@ -85,7 +71,6 @@ for s, cx, cy, cz in good:
 for s in missing:
     if s not in imp: continue
     v = np.asarray(ds.volumes[s], np.float32)
-    # mirror the real rule: take both candidate sides, keep the higher-susceptibility one
     cands = [(crop_at(v, *left), 'L'), (crop_at(v, *right), 'R')]
     cands = [(c, side) for c, side in cands if c is not None]
     if not cands: continue
@@ -96,7 +81,6 @@ print(f"\nCHH-40 built: {V.shape}   recovered by population centroid: {np.char.s
 print(f"  outcome range [{Y.min():.3f}, {Y.max():.3f}]   mean {Y.mean():.3f}")
 print(f"  responders (>=0.30): {(Y>=0.30).sum()}   non-responders: {(Y<0.30).sum()}")
 
-# sanity: do the recovered crops look like the others, or are they outliers?
 from scipy.fft import dctn
 f = lambda X: dctn(X, axes=(1, 2, 3), norm='ortho').reshape(len(X), -1)[:, :64]
 F = f(V)

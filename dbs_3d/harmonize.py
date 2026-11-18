@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)
@@ -29,15 +29,14 @@ def basis(F,name,K):
     return None
 
 def combat(Xa,Xb):
-    """Empirical-Bayes location/scale harmonization, 2 batches, NO outcome covariates."""
     g=np.vstack([Xa,Xb]); grand=g.mean(0); pooled=g.std(0)+1e-8
     Za,Zb=(Xa-grand)/pooled,(Xb-grand)/pooled
     out=[]
     for Z in (Za,Zb):
-        gh,dh=Z.mean(0),Z.var(0)+1e-8                      # per-feature batch effects
-        gbar,tau2=gh.mean(),gh.var()+1e-8                  # EB priors across features
-        gstar=(tau2*gh*len(Z)+ (dh)*gbar)/(len(Z)*tau2+dh) # shrunk location
-        dbar=dh.mean(); dstar=(dh+dbar)/2                  # shrunk scale
+        gh,dh=Z.mean(0),Z.var(0)+1e-8
+        gbar,tau2=gh.mean(),gh.var()+1e-8
+        gstar=(tau2*gh*len(Z)+ (dh)*gbar)/(len(Z)*tau2+dh)
+        dbar=dh.mean(); dstar=(dh+dbar)/2
         out.append((Z-gstar)/np.sqrt(dstar)*pooled+grand)
     return out
 

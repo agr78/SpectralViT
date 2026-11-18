@@ -1,18 +1,4 @@
-"""Does using both nuclei help, or only the higher-susceptibility side?
-
-Every result so far used a single 20x20x16 box centred on the higher-
-susceptibility nucleus. This compares that against the alternatives:
-
-  higher     the side with higher mean susceptibility   (what we have used)
-  lower      the other side
-  both       both boxes, features concatenated
-  mean       the two boxes averaged voxelwise
-  diff       their voxelwise difference (asymmetry)
-
-Asymmetry is worth testing on its own: susceptibility is higher on one side in
-~79% of patients, and the left-right difference is a different quantity from
-either side alone.
-"""
+"""Compare one nucleus against both as model input."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -43,7 +29,6 @@ def load(site, csv, cache):
 
 
 def both_crops(ds, imp):
-    """returns (higher, lower) crops per subject"""
     HI, LO, S = [], [], []
     for s in sorted(ds.volumes):
         s = int(s)
@@ -55,7 +40,7 @@ def both_crops(ds, imp):
         big = np.argsort(sz)[::-1][:2] + 1
         info = sorted([(float(v[lb == b].mean()), b) for b in big], key=lambda t: t[0])
         cs = []
-        for _, b in info:                                   # low first, high second
+        for _, b in info:
             cx, cy, cz = [int(round(x)) for x in ndimage.center_of_mass(m, lb, [b])[0]]
             sl = (slice(max(0, cx-H), max(0, cx-H)+2*H), slice(max(0, cy-H), max(0, cy-H)+2*H),
                   slice(max(0, cz-DZ), max(0, cz-DZ)+2*DZ))

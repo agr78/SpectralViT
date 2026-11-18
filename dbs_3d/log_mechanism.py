@@ -1,25 +1,4 @@
-"""Is log|FFT|'s advantage over |FFT| a conditioning effect?
-
-Both are translation-invariant, so the shift mechanism cannot explain why
-log|FFT| (LOO 0.800 / ext 0.892) beats |FFT| (0.613 / 0.804). The proposed
-explanation is conditioning: magnitude spectra are heavy-tailed with DC
-dominating, and log1p makes the feature distribution closer to Gaussian for a
-linear readout.
-
-That predicts other variance-stabilising transforms of the same coefficients
-should behave like log. Each transform below is a pointwise function of |FFT|,
-so all share its invariances and differ only in distribution shape:
-
-  raw        |F|
-  sqrt       sqrt(|F|)
-  log        log1p(|F|)          (what we use)
-  cbrt       |F|^(1/3)
-  ranknorm   rank -> normal quantiles, per feature
-  boxcox     Yeo-Johnson, per feature
-
-Reported alongside skewness, kurtosis and the design-matrix condition number,
-all computed after the standardisation the models actually use.
-"""
+"""Test whether the log-magnitude basis acts through conditioning."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d')
@@ -42,7 +21,7 @@ HA, LA, HB, LB, bA, bB, Ca, Cb = g['HA'], g['LA'], g['HB'], g['LB'], g['bA'], g[
 H, DZ, K = 10, 8, 16
 IDX = low_modes(K, (2*H, 2*H, 2*DZ), 'lap')
 mag = lambda V: np.stack([np.abs(fftn(V, axes=(1, 2, 3)))[:, a, b, c] for a, b, c in IDX], 1)
-MA = np.hstack([mag(HA), mag(LA)]); MB = np.hstack([mag(HB), mag(LB)])   # 'both' ROI
+MA = np.hstack([mag(HA), mag(LA)]); MB = np.hstack([mag(HB), mag(LB)])
 
 
 def tf(name, A, B):

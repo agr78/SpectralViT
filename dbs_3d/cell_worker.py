@@ -1,11 +1,6 @@
 """Run one cell (ordering, K, weight) over NS seeds and save its predictions.
 
-Cells are independent, so several workers run concurrently on the same GPU --
-each model is tiny (~2.7k parameters) and launch-latency bound, so throughput
-comes from concurrency rather than from larger kernels.
-
-usage: cell_worker.py <ordering> <K> <weight> [nseeds]
-"""
+usage: cell_worker.py <ordering> <K> <weight> [nseeds]"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -68,7 +63,6 @@ def gfit(Xtr, Ctr, ytr, Xte, Cte, lam, seed, ep=1500):
 
 
 def oof_ext(X0, X1, y, lam, seed):
-    """returns (internal AUC, external preds, MSW out-of-fold preds)"""
     pr = np.full(len(y), np.nan)
     for tr, va in StratifiedKFold(4, shuffle=True, random_state=0).split(X0, y):
         s2 = StandardScaler().fit(X0[tr]); s3 = StandardScaler().fit(Ca[tr])

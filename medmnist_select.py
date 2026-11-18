@@ -1,21 +1,7 @@
 """MedMNIST3D with the basis chosen by inner cross-validation on the training split.
 
-The sweep in medmnist_sweep.py fixes the tokenizer in advance, and which one is fixed
-decides the answer: on OrganMNIST3D a fold-wise PCA leads at n=25 while the fixed block
-cosine transform loses at every size, and on NoduleMNIST3D the ordering reverses. Picking
-per dataset after seeing test scores would be selection on the test set, so the basis is
-instead chosen the way capacity already is in the volumetric experiments -- by inner
-cross-validation inside the training subsample, with the fixed test set untouched.
-
-Both arms get a grid, or the comparison stops being matched: the spectral arm selects its
-basis, the spatial arm its patch size, on the identical inner folds and the identical
-metric. Selection uses the one-standard-error rule over arms ordered by token count, so
-the cheapest setting statistically indistinguishable from the best is the one that runs,
-which is the rule the volumetric capacity selection already uses.
-
-env: MEDMNIST_NPZ MEDMNIST_SEEDS MEDMNIST_N MEDMNIST_OUT MEDMNIST_INNER
-usage: python medmnist_select.py
-"""
+usage: python medmnist_select.py"""
+from paths import DATA
 import os, time
 import numpy as np, pandas as pd, torch, torch.optim as optim
 import torch.nn.functional as F
@@ -27,7 +13,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score
 from torch.utils.data import DataLoader, TensorDataset
 from networks import MultiClassSpectralViT, MultiClassSpatialViT
 
-NPZ = os.environ.get('MEDMNIST_NPZ', '/agent-home/medmnist/organmnist3d.npz')
+NPZ = os.environ.get('MEDMNIST_NPZ', f'{DATA}/medmnist/organmnist3d.npz')
 OUT = os.environ.get('MEDMNIST_OUT', 'results/medmnist_select')
 N_SEEDS = int(os.environ.get('MEDMNIST_SEEDS', 5))
 INNER_K = int(os.environ.get('MEDMNIST_INNER', 5))
@@ -35,18 +21,12 @@ EPOCHS, BATCH, LR, WD = 100, 128, 1e-3, 0.01
 dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 os.makedirs(OUT, exist_ok=True)
 
-# Ordered by token count so the one-standard-error rule breaks ties toward the cheaper
-# arm. 28 = 2^2 * 7, so a block grid must divide into {1,2,4,7,14,28}.
 SPEC_GRID = [('pca16', ('pca', 16)), ('pca64', ('pca', 64)),
              ('dct216', ('dct', 2, 3)), ('dct512', ('dct', 4, 2))]
-# Four points each, so neither arm gets a larger tuning budget. Patch sizes must divide
-# 28; patch 28 is dropped as degenerate -- a single token, and a 21,952 to 128 embedding
-# that triples the weight count -- in favour of patch 2.
 SPAT_GRID = [('patch14', 14), ('patch7', 7), ('patch4', 4), ('patch2', 2)]
 
 
 def block_spectra(vols, grid, freq):
-    """Per-block low-frequency cosine coefficients, sign kept and log compressed."""
     B = len(vols)
     bz, by, bx = [t // grid for t in vols.shape[1:]]
     out = np.zeros((B, grid ** 3, freq ** 3), dtype=np.float32)
@@ -63,7 +43,6 @@ def block_spectra(vols, grid, freq):
 
 
 def rank_perm(grid, freq):
-    """Block-major to frequency-major so index order is variance order for 1/i weights."""
     nb, nf = grid ** 3, freq ** 3
     kz, ky, kx = np.unravel_index(np.arange(nf), (freq, freq, freq))
     order = np.argsort(kz ** 2 + ky ** 2 + kx ** 2, kind='stable')
@@ -71,7 +50,6 @@ def rank_perm(grid, freq):
 
 
 def features(spec, Xfit, Xapply):
-    """Build spectral features, fitting anything data-dependent on Xfit alone."""
     if spec[0] == 'pca':
         k = spec[1]
         fit_flat = Xfit.reshape(len(Xfit), -1)
@@ -111,17 +89,6 @@ def train_eval(make, Ztr, ytr, Zev, ncls):
 
 
 def choose(names, mat):
-    """Both selection rules from the same inner scores, to separate their effects.
-
-    The one-standard-error rule takes the cheapest arm within one SE of the best. On
-    HCP-Aging that rule chose the smallest coefficient count in 59% of folds at n=25
-    against 16% for the reported setting: a tiny inner split makes the SE wide enough
-    that nearly every arm qualifies, and the rule then falls through to the cheapest.
-    Logging the plain argmax beside it separates how much of a choice is signal from how
-    much is that pull toward parsimony.
-
-    mat is (arms x folds), higher is better; grids are ordered cheapest first.
-    """
     mu = mat.mean(1)
     best = int(np.argmax(mu))
     se = mat[best].std(ddof=1) / np.sqrt(mat.shape[1]) if mat.shape[1] > 1 else 0.0
@@ -159,8 +126,6 @@ for N in SIZES:
                               for c in range(NCLS) if take[c]])
         Xs, ys = Xtr_all[idx], ytr_all[idx]
 
-        # Inner folds come from the training subsample only; the MedMNIST test split is
-        # the reporting set and is never seen during selection.
         counts = np.bincount(ys, minlength=NCLS)
         k = min(INNER_K, int(counts[counts > 0].min()))
         splitter = (StratifiedKFold(k, shuffle=True, random_state=seed) if k >= 2
@@ -186,7 +151,6 @@ for N in SIZES:
         si, sname, sa, saname = choose([n for n, _ in SPEC_GRID], sm)
         pi, pname, pa, paname = choose([n for n, _ in SPAT_GRID], pm)
 
-        # Refit the selected arms on the whole subsample, then score the fixed test set.
         Ztr, Zte = features(SPEC_GRID[si][1], Xs, [Xs, Xte])
         ps = train_eval(lambda d=Ztr.shape[1]: MultiClassSpectralViT(
             n_inputs=d, num_classes=NCLS, use_mode_weights=True), Ztr, ys, Zte, NCLS)
@@ -196,8 +160,6 @@ for N in SIZES:
             NCLS)
         a, b = score(ps, yte, NCLS), score(pp, yte, NCLS)
 
-        # Where argmax disagrees with the one-SE pick, score that arm too, so the cost of
-        # the parsimony rule is measured rather than inferred. Agreement costs nothing.
         if sa != si:
             Za, Zea = features(SPEC_GRID[sa][1], Xs, [Xs, Xte])
             aa = score(train_eval(lambda d=Za.shape[1]: MultiClassSpectralViT(

@@ -1,20 +1,4 @@
-"""Patient-level rerun of the rebuttal Table 3 baselines, matched protocol.
-
-Table 3 as submitted was slice-wise, which is why specificities like 0.948 and
-0.967 appear despite 3 external non-responders. Everything here is patient-level
-(59 MSW / 37 CHH), thresholds are calibrated on MSW out-of-fold only, and all
-models see the same folds and the same 20 seeds.
-
-Models, following the rebuttal:
-  Clinical       covariates only
-  Spectral LR    logistic regression on spectral coefficients
-  Spectral MLP   MLP on spectral coefficients
-  Spatial ViT    transformer over spatial patches of the same crop
-  SpectralViT    spectral tokens + covariates, concat-token attention (ours)
-
-Attention U-Net is omitted: it is a segmentation architecture whose DBS variant
-is not reconstructable from this repo's committed code.
-"""
+"""Patient-level baseline comparison under the matched protocol."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -45,7 +29,6 @@ IDX = low_modes(K, SHAPE, 'lap')
 LAM = eigvals(IDX, SHAPE)
 SPEC_A = basis3_iso(VA, '3DDCT', K, BB, 'lap')
 SPEC_B = basis3_iso(VB, '3DDCT', K, BB, 'lap')
-# spatial patches of the same crop, matched token count
 PS = 5
 def patches(V):
     c = V[:, BB[0], BB[1], BB[2]]
@@ -59,7 +42,6 @@ PAT_A, PAT_B = patches(VA), patches(VB)
 
 
 class TokenViT(nn.Module):
-    """same body as ours, tokens supplied by the caller (spatial or spectral)"""
     def __init__(s, n, d=16):
         super().__init__()
         s.tok = nn.Linear(1, d); s.pos = nn.Parameter(torch.zeros(1, n, d))
@@ -160,7 +142,7 @@ for name in MODELS:
         else:
             pb = fit_ours(sS.transform(SPEC_A), sC.transform(Ca), bA.astype(float),
                           sS.transform(SPEC_B), sC.transform(Cb), sd)
-        thr = calibrate(bA, pr)                       # MSW only
+        thr = calibrate(bA, pr)
         ii.append(scores(bA, pr, thr)); ee.append(scores(bB, pb, thr))
     for lab, ss in [('internal', ii), ('external', ee)]:
         rows.append(dict(model=name, split=lab,

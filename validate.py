@@ -1,3 +1,5 @@
+"""Cross-validated selection of PCA component count, patch size, and positive class weight for the
+spectral, spatial and clinical arms, on classification and regression."""
 import torch
 import torch.optim as optim
 import torch.nn as nn
@@ -38,14 +40,6 @@ from networks import SpectralViT, SpatialViT
 
 def SpectralViT_cv(X_flat, Y, pca_candidates, device, epochs=500, lr=1e-4,
                    batch_size=8, use_mode_weights=True):
-    """Select the PCA component count by cross-validation.
-
-    The probe must train the same architecture the same way as the arm it selects for,
-    or its ranking is noise. Previously it set the batch size to the size of a test fold
-    (~113 of 566), which left ~100 optimizer steps over 20 epochs against ~28,500 in the
-    real fit, ran at 10x the learning rate, and omitted use_mode_weights -- so every
-    candidate returned chance (0.511-0.544) and selection was arbitrary.
-    """
     seed_everything(0)
     fixed_batch_size = batch_size
     results = {}
@@ -58,7 +52,6 @@ def SpectralViT_cv(X_flat, Y, pca_candidates, device, epochs=500, lr=1e-4,
         for train_idx, test_idx in kf.split(X_flat):
             torch.cuda.empty_cache()
             
-            # Fit PCA
             pca_model = PCA(n_components=n_comp, whiten=True, random_state=0).fit(X_flat[train_idx])
             tr_pca = torch.from_numpy(pca_model.transform(X_flat[train_idx])).float()
             tr_y = torch.from_numpy(Y[train_idx]).float()
@@ -67,7 +60,6 @@ def SpectralViT_cv(X_flat, Y, pca_candidates, device, epochs=500, lr=1e-4,
             
             loader = DataLoader(TensorDataset(tr_pca, tr_y), batch_size=fixed_batch_size, shuffle=True)
             
-            # Initialize Model
             model = SpectralViT(
                 n_inputs=n_comp, n_heads=2, embed_dim=16, n_layers=4,
                 patch_size=1, use_rank_weights=True, learnable_rank_weights=True,
@@ -102,13 +94,6 @@ def SpectralViT_cv(X_flat, Y, pca_candidates, device, epochs=500, lr=1e-4,
 
 def SpatialViT_cv(X, Y, patch_candidates, device, vol_size=96, epochs=500, lr=1e-4,
                   physical_bs=2, effective_bs=8):
-    """Select the spatial patch size by cross-validation.
-
-    Architecture and batching already match the arm; the epoch and learning-rate defaults
-    did not (20 epochs at 1e-3 gave ~1,120 optimizer steps against ~28,500 in the real
-    fit), so they now match too.
-    """
-    # Reset seed to 0 before starting the spatial grid
     seed_everything(0)
     
     accumulation_steps = effective_bs // physical_bs
@@ -164,15 +149,6 @@ def SpatialViT_cv(X, Y, patch_candidates, device, vol_size=96, epochs=500, lr=1e
     return max(results, key=lambda k: np.mean(results[k]))
 
 def SpectralViT_cv_regression(X_flat, Y, pca_candidates, device, epochs=20, lr=1e-3):
-    """
-    Regression analog of SpectralViT_cv: picks the number of PCA components that
-    gives the lowest held-out MAE (in years) instead of the highest AUC.
-
-    Age is standardized (mean/std fit on the TRAIN fold only) before being handed to
-    the network, since MSE/OneCycleLR are easier to optimize against a ~N(0,1) target
-    than a raw ~[8, 100] year value; predictions are converted back to years before
-    MAE is computed, so the reported numbers are directly interpretable.
-    """
     seed_everything(0)
     kf_peek = KFold(n_splits=5, shuffle=True, random_state=0)
     for _, test_idx in kf_peek.split(X_flat):
@@ -194,7 +170,7 @@ def SpectralViT_cv_regression(X_flat, Y, pca_candidates, device, epochs=20, lr=1
             y_mean, y_std = Y[train_idx].mean(), Y[train_idx].std() + 1e-8
             tr_y = torch.from_numpy((Y[train_idx] - y_mean) / y_std).float()
             ts_pca = torch.from_numpy(pca_model.transform(X_flat[test_idx])).float().to(device)
-            ts_y_fold = Y[test_idx]  # kept in raw years for MAE
+            ts_y_fold = Y[test_idx]
 
             loader = DataLoader(TensorDataset(tr_pca, tr_y), batch_size=fixed_batch_size, shuffle=True)
 
@@ -231,7 +207,6 @@ def SpectralViT_cv_regression(X_flat, Y, pca_candidates, device, epochs=20, lr=1
 
 def SpatialViT_cv_regression(X, Y, patch_candidates, device, vol_size=96, epochs=20, lr=1e-3,
                               physical_bs=2, effective_bs=8):
-    """Regression analog of SpatialViT_cv: picks the patch size with lowest held-out MAE."""
     seed_everything(0)
     accumulation_steps = effective_bs // physical_bs
     results = {}
@@ -287,10 +262,6 @@ def SpatialViT_cv_regression(X, Y, patch_candidates, device, vol_size=96, epochs
     return min(results, key=lambda k: np.mean(results[k]))
 
 def ClinicalTransformer_cv(model_class, model_kwargs, pos_weight_grid, outer_skf, unique_subjs, y_unique, tr_subj_map, X_tr_clin, y_tr_slices, NEG_WEIGHT, criterion, JITTER_STD, EPOCHS, device):
-    """
-    Optimizes pos_weight by re-initializing the model for every fold to prevent data leakage
-    and cumulative training bias.
-    """
     print("\n Optimizing `pos_weight` via clinical transformer...")
     weight_results = {k: [] for k in pos_weight_grid}
     
@@ -307,7 +278,6 @@ def ClinicalTransformer_cv(model_class, model_kwargs, pos_weight_grid, outer_skf
             X_val_clin_t = torch.tensor(X_tr_clin[val_mask], dtype=torch.float32).to(device)
             y_val = y_tr_slices[val_mask]
 
-            # Optimizer must be linked to the fresh model's parameters
             optimizer = optim.Adam(model.parameters(), lr=1e-4)
             w = torch.where(y_train_t == 0, torch.tensor(NEG_WEIGHT, device=device), torch.tensor(pos_weight, device=device))
 
@@ -329,7 +299,6 @@ def ClinicalTransformer_cv(model_class, model_kwargs, pos_weight_grid, outer_skf
         weight_results[pos_weight] = fold_aucs
         print(f"  Pos Weight={pos_weight}: AUC = {mean_std_str(fold_aucs)}")
 
-    # Selection logic based on your original snippet (minimizing standard deviation)
     SELECTED_POS_WEIGHT = pos_weight_grid[np.argmin([np.std(weight_results[pw]) for pw in pos_weight_grid])]
     print(f"Selected positive weight: {SELECTED_POS_WEIGHT}")
     return SELECTED_POS_WEIGHT
@@ -339,7 +308,6 @@ def ResidualSpectralViT_cv(model_classes, model_kwargs, pca_components_grid, out
     pca_results = {k: [] for k in pca_components_grid}
     print("\n Optimizing `n_components` with spectral ViT")
     
-    # Extract classes from the passed dictionary for readability
     CT_Class = model_classes['clinical']
     ViT_Class = model_classes['vit']
     Wrapper_Class = model_classes['wrapper']
@@ -350,13 +318,11 @@ def ResidualSpectralViT_cv(model_classes, model_kwargs, pca_components_grid, out
             train_subjects, val_subjects = unique_subjs[train_subj_idx], unique_subjs[val_subj_idx]
             train_mask, val_mask = np.isin(tr_subj_map, train_subjects), np.isin(tr_subj_map, val_subjects)
 
-            # Fit Scaler and PCA only on training data to prevent leakage
             f_img_scaler = StandardScaler().fit(X_tr_slices[train_mask])
             f_pca = PCA(n_components=n_comp, random_state=0, whiten=True).fit(
                 f_img_scaler.transform(X_tr_slices[train_mask])
             )
 
-            # Prepare Tensors
             X_tr_clin_t = torch.tensor(X_tr_clin[train_mask], dtype=torch.float32).to(device)
             X_tr_pca_t = torch.tensor(f_pca.transform(f_img_scaler.transform(X_tr_slices[train_mask])), dtype=torch.float32).to(device)
             y_train_t = torch.tensor(y_tr_slices[train_mask], dtype=torch.float32).to(device)
@@ -365,12 +331,10 @@ def ResidualSpectralViT_cv(model_classes, model_kwargs, pca_components_grid, out
             X_val_pca_t = torch.tensor(f_pca.transform(f_img_scaler.transform(X_tr_slices[val_mask])), dtype=torch.float32).to(device)
             y_val = y_tr_slices[val_mask]
 
-            # Initialize Clinical Transformer
             m_ct = CT_Class(n_inputs=X_tr_clin.shape[1]).to(device)
             opt_ct = optim.Adam(m_ct.parameters(), lr=1e-4)
             w = torch.where(y_train_t == 0, torch.tensor(NEG_WEIGHT, device=device), torch.tensor(SELECTED_POS_WEIGHT, device=device))
             
-            # Pre-train Clinical Transformer
             for _ in range(EPOCHS // 2):
                 m_ct.train()
                 opt_ct.zero_grad()
@@ -382,7 +346,6 @@ def ResidualSpectralViT_cv(model_classes, model_kwargs, pca_components_grid, out
             for p in m_ct.parameters():
                 p.requires_grad_(False)
 
-            # Spectral ViT
             vit_params = model_kwargs['vit'].copy()
             vit_params['n_inputs'] = n_comp
             
@@ -393,7 +356,6 @@ def ResidualSpectralViT_cv(model_classes, model_kwargs, pca_components_grid, out
             
             optimizer = optim.Adam(model.m_res.parameters(), lr=5e-4)
 
-            # Train Combined Model
             for epoch in range(EPOCHS):
                 model.train()
                 optimizer.zero_grad()
@@ -401,7 +363,6 @@ def ResidualSpectralViT_cv(model_classes, model_kwargs, pca_components_grid, out
                 loss.backward()
                 optimizer.step()
 
-            # Evaluate
             model.eval()
             with torch.no_grad():
                 val_probs = model(X_val_pca_t, X_val_clin_t).cpu().numpy()
@@ -412,7 +373,6 @@ def ResidualSpectralViT_cv(model_classes, model_kwargs, pca_components_grid, out
         pca_results[n_comp] = fold_aucs
         print(f"  PCA={n_comp}: AUC = {mean_std_str(fold_aucs)}")
 
-    # Select best PCA components based on Mean AUC
     N_PCA_COMPONENTS = pca_components_grid[np.argmax([np.mean(pca_results[n]) for n in pca_components_grid])]
     print(f"Selected PCA components: {N_PCA_COMPONENTS}")
     return N_PCA_COMPONENTS

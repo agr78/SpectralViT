@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)
@@ -21,7 +21,7 @@ def feats(mae,norm,V):
     x=(torch.tensor(patchify(V),dtype=torch.float32)-mu)/sd
     mae.eval()
     with torch.no_grad(): z=mae.encode(x)
-    return torch.cat([z[:,0],z[:,1:].mean(1)],1).numpy()      # CLS + mean-pooled
+    return torch.cat([z[:,0],z[:,1:].mean(1)],1).numpy()
 def probe(FA_,FB_,npc,tag):
     p=PCA(npc,random_state=0).fit(StandardScaler().fit_transform(FA_))
     sA=StandardScaler().fit(FA_); XA_=p.transform(sA.transform(FA_)); XB_=p.transform(sA.transform(FB_))

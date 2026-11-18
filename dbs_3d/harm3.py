@@ -1,20 +1,4 @@
-"""Harmonisation estimated from only the three held-out CHH cases.
-
-Subjects 12, 15 and 17 have no usable segmentation, so they are excluded from
-every evaluation. That makes them the one part of CHH that can be used to
-estimate a site correction without leaking anything into the test set.
-
-Compared against:
-  none          no correction
-  harm3-mean    location shift estimated from the 3 held-out cases only  (leak-free)
-  harm3-ms      location + scale from the 3                              (leak-free)
-  all37-mean    location shift from the 37 test patients                 (transductive)
-  all37-coral   CORAL from the 37 test patients                          (transductive)
-
-The transductive rows are an upper bound on what harmonisation could buy, not a
-usable result. Three samples give a poor covariance estimate, so only location
-and per-feature scale are attempted from them.
-"""
+"""Harmonization estimated from the held-out CHH cases."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d')
@@ -43,7 +27,6 @@ g = {'__file__': os.path.join(SPDIR, 'roi_x_models.py')}
 exec(compile(src, 'x', 'exec'), g)
 HA, LA, HB, LB, bA, bB, Ca, Cb = g['HA'], g['LA'], g['HB'], g['LB'], g['bA'], g['bB'], g['Ca'], g['Cb']
 
-# the three held-out CHH cases, cropped at the correct side via the two cluster centres
 dsB = prepare_qsm_dataset('CHH', '/x', '/y', os.path.join(DATA, 'chh_subjects_table1_20240729.csv'),
                           os.path.join(CACHE, 'chh_cache_6d_cv.pt'), load_cache=True, mask_crop_fn=mcf, cv_pad=False)
 cents = []
@@ -77,9 +60,9 @@ HH = np.array([h for h, _ in held], np.float32); HL = np.array([l for _, l in he
 print(f"held-out CHH cases recovered: {HH.shape[0]}  (subjects 12, 15, 17)")
 
 f = lambda V: np.stack([dctn(V, axes=(1, 2, 3), norm='ortho')[:, a, b, c] for a, b, c in IDX], 1)
-XA = np.hstack([f(HA), f(LA)])            # 'both' ROI, the best construction
+XA = np.hstack([f(HA), f(LA)])
 XB = np.hstack([f(HB), f(LB)])
-XH = np.hstack([f(HH), f(HL)])            # the three held-out cases
+XH = np.hstack([f(HH), f(HL)])
 print(f"MSW {XA.shape}  CHH-test {XB.shape}  CHH-heldout {XH.shape}\n")
 
 

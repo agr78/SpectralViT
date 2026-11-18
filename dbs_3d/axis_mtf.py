@@ -1,14 +1,4 @@
-"""Per-axis spectral falloff, to test whether the acquisition is anisotropic.
-
-fast_resample_sharp assumes one scalar voxel size per site. If the true
-acquisition is anisotropic, each axis has its own Nyquist and modes with high
-frequency along the coarse axis are unresolved even at low total frequency.
-
-Estimates each axis independently: take every 1-D line along that axis, power
-spectrum, average. An axis with lower true resolution loses high-frequency power
-sooner. Uses the whole volume (not just the ROI crop) so the estimate is not
-dominated by the shape of the structure.
-"""
+"""Per-axis spectral falloff, to test whether the acquisition is anisotropic."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -34,10 +24,8 @@ ds['CHH'] = prepare_qsm_dataset('CHH', '/x', '/y', os.path.join(DATA, 'chh_subje
 
 
 def axis_spectrum(V, axis, nsub=20):
-    """mean 1-D power spectrum along one axis, normalised, over central lines"""
     V = np.moveaxis(V, axis, -1)
     n = V.shape[-1]
-    # central region only, to avoid background and the feathered edges
     s = [slice(d // 4, 3 * d // 4) for d in V.shape[:-1]]
     lines = V[tuple(s)].reshape(-1, n)
     lines = lines[np.abs(lines).sum(1) > 0]
@@ -58,9 +46,8 @@ for site in ('MSW', 'CHH'):
     print(f"{site}  ({len(V)} subjects, volume {V[0].shape})")
     for ax, nm in enumerate('xyz'):
         Ps = np.mean([axis_spectrum(v, ax) for v in V], 0)
-        f = np.arange(len(Ps)) / (2.0 * len(Ps))          # cycles/voxel, Nyquist 0.5
+        f = np.arange(len(Ps)) / (2.0 * len(Ps))
         hi = Ps[len(Ps) // 2:].sum()
-        # half-power frequency: where the cumulative spectrum reaches 90%
         c = np.cumsum(Ps); f90 = f[np.searchsorted(c, 0.90)]
         print(f"   {nm}: power>half-Nyq {hi:.4f}   f90 {f90:.3f} cyc/vox   "
               f"(isotropic would match across axes)")

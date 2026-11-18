@@ -1,13 +1,4 @@
-"""Compare the MSW and CHH spectral content of the SN/STN crops.
-
-MSW is native 0.5 mm; CHH is acquired at 0.9 mm and interpolated onto the MSW
-grid. If that is what limits cross-site transport, CHH power should fall away
-from MSW above the frequency CHH actually resolves -- a knee near
-
-    f_cut / f_nyquist = 0.5 / 0.9 = 0.556
-
-This uses no outcome labels, so any cutoff it suggests is available a priori.
-"""
+"""Compare the MSW and CHH spectral content of the SN/STN crops."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -31,11 +22,9 @@ print(f"crops: MSW {cbA.shape}  CHH {cbB.shape}   (bbox {shape})")
 
 
 def radial_power(X, nb=12):
-    """mean radial power spectrum, frequency normalised to Nyquist"""
     P = np.abs(fftshift(fftn(X, axes=(1, 2, 3)), axes=(1, 2, 3))) ** 2
     g = np.mgrid[:shape[0], :shape[1], :shape[2]].astype(float)
     c = [(s - 1) / 2 for s in shape]
-    # normalise each axis by its own Nyquist so the radius is in cycles/Nyquist
     r = np.sqrt(sum(((g[d] - c[d]) / (shape[d] / 2.0)) ** 2 for d in range(3)) / 3.0)
     edges = np.linspace(0, 1, nb + 1)
     out = np.zeros((len(X), nb))
@@ -48,7 +37,6 @@ def radial_power(X, nb=12):
 
 pa, f = radial_power(cbA)
 pb, _ = radial_power(cbB)
-# normalise each subject by its own total power so overall scaling cancels
 pa = pa / pa.sum(1, keepdims=True)
 pb = pb / pb.sum(1, keepdims=True)
 ma, mb = pa.mean(0), pb.mean(0)
@@ -69,7 +57,6 @@ if drop > 0:
 else:
     print("CHH never falls below 50% of MSW power in these bands")
 
-# per-axis, since the resample is isotropic but the grid is not
 print("\nper-axis 1-D spectra (normalised power beyond half-Nyquist):")
 for d, nm in enumerate('xyz'):
     ax = tuple(i for i in (1, 2, 3) if i != d + 1)

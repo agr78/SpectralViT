@@ -1,11 +1,6 @@
-"""Permutation p at nested sample sizes, to show the estimate settling.
+"""Permutation p at nested sample sizes.
 
-Chunks are ordered, so the first n permutations of a long run are exactly a short run.
-Reports r/n and the conventional (r+1)/(n+1), which is the defensible one to quote for a
-Monte Carlo test, with the binomial standard error.
-
-usage: perm_convergence.py [model] [K]
-"""
+usage: perm_convergence.py [model] [K]"""
 import os, sys, glob, pickle
 import numpy as np
 

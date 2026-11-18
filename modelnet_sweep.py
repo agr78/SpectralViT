@@ -1,35 +1,7 @@
-"""ModelNet40 on a shared icosphere: does the topology-preserving basis hold up?
+"""ModelNet40 classification on a shared icosphere.
 
-sec:tp claims the Laplacian eigenbasis orders tokens by smoothness over a graph rather than
-over a pixel lattice, which matters on domains where the Euclidean grid is not the relevant
-geometry. No experiment in the paper currently separates that claim from the DCT, because on
-a regular grid the two coincide: the graph Laplacian eigenvectors of a lattice with Neumann
-boundaries *are* the DCT basis. A sphere has no separable cosine basis, so it is the setting
-where the Laplacian is the only natural fixed choice and the property becomes testable.
-
-Each ModelNet40 shape is reduced to its support function on one shared icosphere (see
-spherical.py), so every object carries a signal on the same graph and one Laplacian serves
-all of them. The comparison is then basis against basis at matched coefficient counts:
-
-  laplacian  the eigenvectors of the shared icosphere graph, fixed and data independent
-  pca        fit on each training subsample, data dependent, topology agnostic
-  learned    a trainable projection of the raw signal, the stand-in for a learned tokenizer
-  rand       fixed random orthonormal directions: data independent AND topology blind
-  vertex     the signal at a fixed subset of sphere vertices, i.e. no basis at all
-
-Laplacian against pca isolates fixed versus fitted; Laplacian against rand or vertex
-isolates what the graph structure itself contributes, which pca cannot answer because it
-differs in both respects at once.
-
-Both feed the identical encoder, so the only variable is which fixed or fitted basis
-supplies the coefficients. A spatial-patch baseline is deliberately absent: an icosphere has
-no regular patch structure, and inventing one would compare against a straw tokenizer rather
-than answer the question sec:tp poses.
-
-env: MODELNET_DIR MODELNET_CACHE MODELNET_BASIS MODELNET_COMP MODELNET_SUBDIV
-     MODELNET_SEEDS MODELNET_N MODELNET_OUT
-usage: python modelnet_sweep.py [--smoke]
-"""
+usage: python modelnet_sweep.py [--smoke]"""
+from paths import DATA
 import os, sys, time, glob
 import numpy as np, pandas as pd, torch, torch.nn as nn, torch.optim as optim
 import torch.nn.functional as F
@@ -42,14 +14,13 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from networks import MultiClassSpectralViT
 from spherical import basis, support, read_off
 
-# Token-identity switches; defaults reproduce every result already on disk.
 _POS = os.environ.get('MODELNET_POS', '1') != '0'
 _RANK = os.environ.get('MODELNET_RANK') == '1'
 
 
 SMOKE = '--smoke' in sys.argv
-DIR = os.environ.get('MODELNET_DIR', '/agent-home/modelnet/ModelNet40')
-CACHE = os.environ.get('MODELNET_CACHE', '/agent-home/modelnet/sphere_signals.npz')
+DIR = os.environ.get('MODELNET_DIR', f'{DATA}/modelnet/ModelNet40')
+CACHE = os.environ.get('MODELNET_CACHE', f'{DATA}/modelnet/sphere_signals.npz')
 BASIS = os.environ.get('MODELNET_BASIS', 'laplacian')
 N_COMP = int(os.environ.get('MODELNET_COMP', 16))
 SUBDIV = int(os.environ.get('MODELNET_SUBDIV', 3))
@@ -65,20 +36,12 @@ if N_COMP % 4:
 os.makedirs(OUT, exist_ok=True)
 dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# ---------------------------------------------------------------- shared sphere + basis
 verts, eigval, eigvec = basis(SUBDIV, max(N_COMP, 64))
 print(f'icosphere subdiv {SUBDIV}: {len(verts)} vertices; '
       f'{eigvec.shape[1]} Laplacian modes, eigenvalues to {eigval[-1]:.2f}', flush=True)
 
 
 class LearnedBasis(nn.Module):
-    """A trainable projection in place of a fixed basis, on identical input.
-
-    A spatial-patch baseline is unavailable here because an icosphere has no regular patch
-    structure, so this is the fair stand-in for a learned tokenizer: the same signals, the
-    same encoder, and the projection estimated end to end rather than supplied. It carries
-    n_in * comp additional parameters, which is the cost a fixed basis avoids.
-    """
     def __init__(self, n_in, comp, ncls, **kw):
         super().__init__()
         self.proj = nn.Linear(n_in, comp, bias=False)
@@ -89,7 +52,6 @@ class LearnedBasis(nn.Module):
 
 
 def build_cache():
-    """Support-function signals for every shape, computed once."""
     classes = sorted(d for d in os.listdir(DIR) if os.path.isdir(os.path.join(DIR, d)))
     out = {}
     for split in ('train', 'test'):
@@ -100,8 +62,6 @@ def build_cache():
                 try:
                     sig.append(support(read_off(f), verts)); lab.append(ci)
                 except Exception:
-                    # A handful of ModelNet OFF files are malformed; skipping one shape is
-                    # preferable to failing the whole cache, and the count is reported.
                     continue
             print(f'  {split} {c:24s} {len(files):4d} files '
                   f'({time.time()-t0:.0f}s)', flush=True)
@@ -159,25 +119,15 @@ for N in SIZES:
         Str, ytr = Xtr_all[tr_idx], ytr_all[tr_idx]
 
         if BASIS == 'laplacian':
-            # Fixed: the same eigenvectors for every shape and every fold, so nothing is
-            # estimated from the training split except the standardization.
             Ftr, Fte = Str @ eigvec[:, :N_COMP], Xte @ eigvec[:, :N_COMP]
             m, s = Ftr.mean(0, keepdims=True), Ftr.std(0, keepdims=True) + 1e-6
             Ztr = torch.tensor((Ftr - m) / s, dtype=torch.float32)
             Zte = torch.tensor((Fte - m) / s, dtype=torch.float32)
         elif BASIS == 'learned':
-            # No projection applied here: the raw signal is handed to the model, which
-            # learns one. Standardization is still fit on the training split only.
             m, sdv = Str.mean(0, keepdims=True), Str.std(0, keepdims=True) + 1e-6
             Ztr = torch.tensor((Str - m) / sdv, dtype=torch.float32)
             Zte = torch.tensor((Xte - m) / sdv, dtype=torch.float32)
         elif BASIS in ('rand', 'vertex'):
-            # Topology-blind controls, both fixed and data independent like the Laplacian,
-            # so a gap between them and 'laplacian' isolates what the graph structure buys
-            # rather than what adaptivity buys. 'rand' projects onto fixed random
-            # orthonormal directions; 'vertex' just reads the signal at a fixed subset of
-            # sphere vertices, which is what one would do with no basis at all. Both use a
-            # fixed seed, so the projection is identical across every size and fold.
             rs = np.random.RandomState(0)
             if BASIS == 'rand':
                 q, _ = np.linalg.qr(rs.randn(Str.shape[1], N_COMP))

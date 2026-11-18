@@ -1,17 +1,5 @@
-"""Pick the FAMILY by a cheap diagnostic, then the config by CV inside it.
-
-Flat argmax over 115 candidates fails: the inner CV ranks the true best 5th on synapse and
-44th on vessel, and its split-half reliability is +0.184. But the diagnostic that found
-fracture's fix -- comparing a probe on signed coefficients against one on magnitudes --
-worked from training data alone, and it chooses between a handful of FAMILIES rather than
-115 configs, so it carries far less selection variance.
-
-This asks whether that diagnostic works from 25 volumes: for each (dataset, seed) it
-builds four feature families from the 25 training volumes, scores each by repeated inner
-CV with a convex probe, and reports which family it picks against which family actually
-contains the best config on test. Everything is fitted inside the 25; the test split is
-only used to say whether the pick was right.
-"""
+"""Pick the FAMILY by a cheap diagnostic, then the config by CV inside it."""
+from paths import DATA
 import os, glob
 import numpy as np, pandas as pd
 from scipy import fft, ndimage
@@ -23,9 +11,9 @@ from sklearn.metrics import roc_auc_score
 
 DS = ['organmnist3d', 'nodulemnist3d', 'adrenalmnist3d',
       'fracturemnist3d', 'vesselmnist3d', 'synapsemnist3d']
-SETS = {'organmnist3d': '/agent-home/medmnist/organmnist3d.npz'}
+SETS = {'organmnist3d': f'{DATA}/medmnist/organmnist3d.npz'}
 for d in ('nodule', 'adrenal', 'fracture', 'vessel', 'synapse'):
-    SETS[d + 'mnist3d'] = f'/workspace/data/medmnist/{d}mnist3d.npz'
+    SETS[d + 'mnist3d'] = f'{DATA}/medmnist/{d}mnist3d.npz'
 
 
 def allocate(avail, n):

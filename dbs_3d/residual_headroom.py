@@ -1,18 +1,4 @@
-"""Is there anything left for imaging to explain after the clinical covariates?
-
-Externally the imaging adds +0.004 AUC over covariates alone, while internally it
-adds a lot (LOO 0.821 vs 0.691). Two explanations:
-
-  (a) the imaging carries no information orthogonal to the covariates, in which
-      case no architecture recovers anything, or
-  (b) it carries orthogonal information that is site-specific, in which case
-      domain adaptation is the right target.
-
-This distinguishes them. Fit the clinical model, take its residual, and ask
-whether the imaging predicts that residual -- internally and externally. Also
-measures how much of the imaging signal is linearly explainable by the
-covariates in the first place.
-"""
+"""Imaging signal remaining after the clinical covariates."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -39,7 +25,6 @@ sC = StandardScaler().fit(Ca); DA, DB = sC.transform(Ca), sC.transform(Cb)
 
 print(f"MSW {len(bA)} ({bA.sum()}/{(bA==0).sum()})   CHH {len(bB)} ({bB.sum()}/{(bB==0).sum()})\n")
 
-# 1. how much of each imaging feature is already explained by the covariates?
 r2 = []
 for j in range(ZA.shape[1]):
     m = LinearRegression().fit(DA, ZA[:, j])
@@ -50,7 +35,6 @@ print(f"   mean R2 {r2.mean():.3f}   max {r2.max():.3f}   "
       f"features with R2>0.3: {(r2 > 0.3).sum()}/{len(r2)}")
 print("   -> how much imaging information is redundant with the covariates\n")
 
-# 2. clinical out-of-fold residual, then can imaging predict it?
 def clin_oof(y):
     p = np.full(len(y), np.nan)
     for tr, va in StratifiedKFold(4, shuffle=True, random_state=0).split(DA, y):
@@ -59,7 +43,7 @@ def clin_oof(y):
     return p
 
 pc = clin_oof(bA)
-resid = bA - (1 / (1 + np.exp(-pc)))               # signed clinical error
+resid = bA - (1 / (1 + np.exp(-pc)))
 print("2. does imaging predict the CLINICAL RESIDUAL?  (MSW, out-of-fold)")
 rr = np.full(len(bA), np.nan)
 for tr, va in KFold(5, shuffle=True, random_state=0).split(ZA):
@@ -76,7 +60,6 @@ r2e, p2e = pearsonr(resid_B, rb)
 print(f"   EXTERNAL residual r = {r2e:+.3f}  (p={p2e:.4f})")
 print("   -> internal>0 external~0 means orthogonal but site-specific\n")
 
-# 3. how site-specific are the imaging features? can we tell MSW from CHH?
 X = np.vstack([ZA, ZB]); site = np.r_[np.zeros(len(ZA)), np.ones(len(ZB))]
 sd = []
 for tr, va in StratifiedKFold(5, shuffle=True, random_state=0).split(X, site):

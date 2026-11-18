@@ -1,26 +1,6 @@
 """Every model against every ROI construction.
 
-Results so far used one box on the higher-susceptibility nucleus. The both-sides
-probe suggested the left-right difference is far less site-separable (0.749 vs
-0.922), which would make it transfer better -- but that was an imaging-only
-logistic probe, so it does not tell us which input is better for the full
-models. This crosses them.
-
-ROI variants
-  higher     the higher-susceptibility nucleus        (used in all prior results)
-  both       both nuclei, features concatenated
-  mean       the two boxes averaged                   (symmetric)
-  diff       their difference                         (asymmetric; cancels site)
-
-Models: Clinical, Spectral LR, Spectral MLP, Spatial ViT, SpectralViT (ours).
-Clinical does not depend on the ROI so it is reported once.
-
-Crop windows are clamped to fit inside the volume rather than clipped and
-dropped, which recovers subjects whose nucleus sits near the edge -- including
-one MSW non-responder.
-
-usage: roi_x_models.py [nseeds]
-"""
+usage: roi_x_models.py [nseeds]"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -82,7 +62,7 @@ def crops(ds, imp):
         cs = []
         for _, b in info:
             cx, cy, cz = [int(round(x)) for x in ndimage.center_of_mass(m, lb, [b])[0]]
-            x0 = min(max(0, cx-H), v.shape[0]-2*H)       # clamp, do not clip-and-drop
+            x0 = min(max(0, cx-H), v.shape[0]-2*H)
             y0 = min(max(0, cy-H), v.shape[1]-2*H)
             z0 = min(max(0, cz-DZ), v.shape[2]-2*DZ)
             cs.append(v[x0:x0+2*H, y0:y0+2*H, z0:z0+2*DZ])

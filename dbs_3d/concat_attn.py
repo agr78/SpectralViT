@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)
@@ -16,9 +16,6 @@ exec(src.split("\nREG=")[0])
 t0=time.time(); log=lambda m: print(f"[{time.time()-t0:5.0f}s] {m}",flush=True)
 
 class ConcatAttn(nn.Module):
-    """self-attention over the CONCATENATED [imaging ; covariate] token set.
-       mean-pool readout, plus a linear residual on the raw concat vector so the
-       model can always fall back to plain concat."""
     def __init__(s,K,C,d=16,typ=False,resid=True):
         super().__init__(); s.K,s.C,s.typ,s.resid=K,C,typ,resid
         s.tok=nn.Linear(1,d); s.pos=nn.Parameter(torch.zeros(1,K+C,d))

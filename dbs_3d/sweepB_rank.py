@@ -1,5 +1,5 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
 OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
@@ -16,15 +16,6 @@ dev=torch.device('cuda'); T=lambda a: torch.tensor(a,dtype=torch.float32,device=
 t0=time.time(); log=lambda m: print(f"[{time.time()-t0:5.0f}s] {m}",flush=True)
 
 class RankAttn(nn.Module):
-    """concat-token attention with an explicit RANK prior on the spectral tokens.
-
-    rank_mode scales token i of the imaging block before embedding:
-      none      1
-      inv       1/i          (the omega_i = 1/i weighting from the spectral ViT)
-      invsqrt   1/sqrt(i)
-      loginv    1/log(1+i)
-      learned   a free per-rank scalar, initialised at 1/i
-    """
     def __init__(s,K,C,d=16,rank_mode='none'):
         super().__init__(); s.K,s.C=K,C
         i=torch.arange(1,K+1,dtype=torch.float32)
@@ -39,7 +30,7 @@ class RankAttn(nn.Module):
         s.hd=nn.Linear(d,1); s.lin=nn.Linear(K+C,1)
     def forward(s,x,c):
         w=s.w if s.w is not None else s.fixed
-        xw=x*w                                   # rank-weighted spectral coefficients
+        xw=x*w
         v=torch.cat([xw,c],1)
         z=s.tok(v.unsqueeze(-1))+s.pos
         z=z+torch.cat([s.ty[0].expand(s.K,-1),s.ty[1].expand(s.C,-1)],0).unsqueeze(0)

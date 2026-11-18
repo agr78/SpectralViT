@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)
@@ -32,7 +32,6 @@ def oof_ext(X0,X1,y,typ,resid,seed):
     pb=gfit(s2.transform(X0),s3.transform(Ca),y.astype(float),s2.transform(X1),s3.transform(Cb),
             X0.shape[1],Ca.shape[1],typ,resid,seed=seed)
     return roc_auc_score(y,pr),pb
-# ---------- TEST 4: internal permutation on the pre-specified cell ----------
 X0,X1=basis3(VA,'3DDCT',16),basis3(VB,'3DDCT',16)
 obs,_=oof_ext(X0,X1,bA,True,True,0)
 log(f"TEST 4: observed internal OOF AUC {obs:.3f}; running 200 label permutations")
@@ -43,7 +42,6 @@ for b in range(200):
     if (b+1)%50==0: log(f"   {b+1}/200  running null mean {np.mean(null):.3f}")
 null=np.array(null)
 print(f"\nTEST 4 INTERNAL PERMUTATION: observed {obs:.3f}   null {null.mean():.3f}+-{null.std():.3f}   p = {(null>=obs).mean():.4f}\n",flush=True)
-# ---------- seed-averaged cell selection ----------
 log("SEED-AVERAGED SELECTION across all cells x 5 seeds")
 rows=[];PRED={}
 for bn,K in itertools.product(['3D|FFT|','3DlogFFT','3DDCT','3DPCA','3DgraphLap'],[8,16]):

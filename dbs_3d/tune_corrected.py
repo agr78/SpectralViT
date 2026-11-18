@@ -1,19 +1,4 @@
-"""Re-tune on the corrected 66-patient cohort.
-
-Every hyperparameter in use was chosen when the cohort was 59 patients with 4
-non-responders: K=16, d=16, 200 epochs, plain BCE. This sweeps them on the
-corrected data, and adds ROI configurations we have not separated:
-
-  higher / lower   ordered by mean susceptibility  (what we have used)
-  left / right     ordered by position             (anatomical, a different split)
-  both / mean / diff
-
-The two mask components are left and right hemispheres -- x-centroids cluster
-at 13 and 52 of 64 -- so susceptibility-ordering and anatomical ordering are
-different groupings of the same two boxes.
-
-LOO throughout, one seed for the sweep; the winner is then re-run multi-seed.
-"""
+"""Tune the configuration on the internal cohort."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d')
@@ -57,7 +42,6 @@ def outcomes():
 
 
 def crops(ds, imp):
-    """returns higher, lower, left, right boxes per subject"""
     HI, LO, LF, RT, S = [], [], [], [], []
     for s in sorted(ds.volumes):
         s = int(s)
@@ -73,8 +57,8 @@ def crops(ds, imp):
             z0 = min(max(0, cz-DZ), v.shape[2]-2*DZ)
             boxes.append((v[x0:x0+2*H, y0:y0+2*H, z0:z0+2*DZ], cx, float(v[lb == b].mean())))
         if any(b[0].shape != (2*H, 2*H, 2*DZ) for b in boxes): continue
-        by_sus = sorted(boxes, key=lambda t: t[2])       # low, high
-        by_pos = sorted(boxes, key=lambda t: t[1])       # left, right
+        by_sus = sorted(boxes, key=lambda t: t[2])
+        by_pos = sorted(boxes, key=lambda t: t[1])
         LO.append(by_sus[0][0]); HI.append(by_sus[1][0])
         LF.append(by_pos[0][0]); RT.append(by_pos[1][0]); S.append(s)
     return [np.array(x, np.float32) for x in (HI, LO, LF, RT)] + [np.array(S)]

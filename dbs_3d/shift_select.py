@@ -1,5 +1,5 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
 OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
@@ -15,19 +15,17 @@ from scipy.stats import pearsonr, spearmanr, wasserstein_distance
 exec(open(os.path.join(SPDIR,'concat_attn.py')).read().split("rows=[]")[0])
 
 def mmd(A,B,gamma=None):
-    """RBF maximum mean discrepancy between the two feature clouds"""
     Z=np.vstack([A,B]); d2=((Z[:,None,:]-Z[None,:,:])**2).sum(-1)
     g=1.0/np.median(d2[d2>0]) if gamma is None else gamma
     k=lambda X,Y: np.exp(-g*((X[:,None,:]-Y[None,:,:])**2).sum(-1))
     return k(A,A).mean()+k(B,B).mean()-2*k(A,B).mean()
 def domain_auc(A,B):
-    """how separable are the two sites? 0.5 = indistinguishable = no shift"""
     X=np.vstack([A,B]); y=np.r_[np.zeros(len(A)),np.ones(len(B))]
     s=StandardScaler().fit_transform(X)
     return cross_val_score(LogisticRegression(max_iter=2000),s,y,cv=4,scoring='roc_auc').mean()
 
 sel=pd.read_csv(os.path.join(OUT.replace('/docs/dbs_3d',''),'docs','dbs_3d','seedsel.csv')) \
-    if os.path.exists(os.path.join(OUT,'seedsel.csv')) else pd.read_csv('/agent-home/runs/seedsel.csv')
+    if os.path.exists(os.path.join(OUT,'seedsel.csv')) else pd.read_csv(os.path.join(os.environ.get('SPECTRALVIT_DATA', os.path.join(REPO, 'data')), 'runs', 'seedsel.csv'))
 rows=[]
 for bn,K in itertools.product(['3D|FFT|','3DlogFFT','3DDCT','3DPCA','3DgraphLap'],[8,16]):
     if bn=='3DPCA':

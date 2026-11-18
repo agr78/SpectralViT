@@ -1,12 +1,4 @@
-"""Spectral vs spatial on MedMNIST3D at n=25, with BOTH arms tuned by the same rule.
-
-Nothing is selected using test labels. Each arm's configuration is chosen per dataset by
-the pooled out-of-fold AUC computed inside that draw's 25 training volumes, leave-one-seed-
-out: the config is chosen from the other four seeds' CV scores and applied to the held-out
-seed, so no seed informs its own selection.
-  spectral candidates: 89 (basis family x capacity)
-  spatial  candidates:  5 (patch 2, 4, 7, 14, 28 -- the sides that divide 28)
-"""
+"""Spectral against spatial on MedMNIST3D, both arms tuned by the same rule."""
 import glob, os
 import numpy as np, pandas as pd
 from scipy.stats import ttest_rel, wilcoxon
@@ -37,7 +29,6 @@ def load(pat, col, key):
     return pd.concat(out)
 
 
-# spectral: the capacity grid plus the earlier fixed-capacity arms
 sc = [load('results/medmnist_grid/*/*/medmnist_perseed.csv', 'spec_AUC', 'y')]
 for arm in os.listdir('results/medmnist_cv'):
     r = W.get(arm, 'medmnist_n25_paired')
@@ -54,7 +45,6 @@ scv = pd.concat([load('results/medmnist_gridcv/*/*/medmnist_oof.csv', 'oof_AUC',
 S = scv.merge(sc, on=['cfg', 'dataset', 'seed'])
 S = S[S.cfg.isin([c for c, g in S.groupby('cfg') if g.dataset.nunique() == 6])]
 
-# spatial: the patch grid
 P = load('results/medmnist_patchcv/*/*/medmnist_oof.csv', 'oof_AUC', '').merge(
     load('results/medmnist_patch/*/*/medmnist_perseed.csv', 'spat_AUC', 'y'),
     on=['cfg', 'dataset', 'seed'])
@@ -62,7 +52,6 @@ print('spectral candidates %d, spatial candidates %d' % (S.cfg.nunique(), P.cfg.
 
 
 def pick(fr, k, s):
-    """Config chosen from the four seeds that are not s, by mean inner CV score."""
     c = fr[(fr.dataset == k) & (fr.seed != s)].groupby('cfg').oof_AUC.mean().idxmax()
     return c, fr[(fr.dataset == k) & (fr.seed == s) & (fr.cfg == c)].y.values[0]
 

@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)
@@ -111,7 +111,6 @@ for grad in GRADS:
             continue
         for mname,agg in itertools.product(MODELS,AGGS):
             try:
-                # internal OOF
                 pr=np.full(len(subsA),np.nan); IDX={s:i for i,s in enumerate(subsA)}
                 for tr,va in KFold(5,shuffle=True,random_state=0).split(subsA):
                     S=np.array(subsA); mtr,mva=np.isin(PA,S[tr]),np.isin(PA,S[va])
@@ -121,7 +120,6 @@ for grad in GRADS:
                         v=pv[PA[mva]==k]; pr[IDX[k]]=np.median(v) if agg=='median' else v.mean()
                 ok=~np.isnan(pr)
                 r_in=pearsonr(yA[ok],pr[ok])[0]
-                # external
                 sc3=StandardScaler().fit(XA); mdl=MODELS[mname]().fit(sc3.transform(XA),yxA)
                 pv=mdl.predict(sc3.transform(XB))
                 pb=np.array([ (np.median(pv[PB==k]) if agg=='median' else pv[PB==k].mean()) for k in subsB])

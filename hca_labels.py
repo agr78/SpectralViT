@@ -1,11 +1,11 @@
 """Find age/sex labels for HCP-Aging (HCA) subjects anywhere under a search root.
 
-usage: python hca_labels.py [search_root ...]
-"""
+usage: python hca_labels.py [search_root ...]"""
+from paths import RAW
 import os, sys, re
 import pandas as pd
 
-roots = sys.argv[1:] or ['/autofs/vast/lemon']
+roots = sys.argv[1:] or [RAW]
 pat = re.compile(r'(ndar|subject0|demograph|behav|pheno|unrestricted|hca|aging|participant)', re.I)
 cands = []
 for root in roots:

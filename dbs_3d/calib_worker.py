@@ -1,19 +1,6 @@
-"""Fix the probability saturation and calibrate the threshold on MSW only.
+"""Calibrate the decision threshold on the internal cohort.
 
-Training 1500 full-batch steps on 59 separable samples drives every predicted
-probability to ~1.0, so specificity is 0 at any fixed threshold even though the
-ranking is informative (AUC 0.83). Two remedies are compared:
-
-  steps     fewer optimisation steps, so the logits never saturate
-  smooth    label smoothing, which caps the achievable logit magnitude
-  posw      pos_weight in the loss, countering the 55:4 imbalance
-
-The threshold is always calibrated on the MSW out-of-fold predictions by
-maximising balanced accuracy, then applied unchanged to CHH. The test cohort is
-never used to pick it.
-
-usage: calib_worker.py <ordering> <K> <weight> <variant> [nseeds]
-"""
+usage: calib_worker.py <ordering> <K> <weight> <variant> [nseeds]"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -81,7 +68,6 @@ def gfit(Xtr, Ctr, ytr, Xte, Cte, lam, seed):
 
 
 def calibrate(y, p):
-    """threshold maximising balanced accuracy on the TRAINING cohort"""
     ts = np.unique(np.concatenate([p, np.linspace(p.min(), p.max(), 200)]))
     best, bt = -1, np.median(p)
     for t in ts:
@@ -111,7 +97,7 @@ for sd in range(NS):
     s2 = StandardScaler().fit(X0); s3 = StandardScaler().fit(Ca)
     pb = gfit(s2.transform(X0), s3.transform(Ca), bA.astype(float),
               s2.transform(X1), s3.transform(Cb), lam, sd)
-    thr = calibrate(bA, sig(pr))                       # MSW only
+    thr = calibrate(bA, sig(pr))
     rows.append((scores(bA, sig(pr), thr), scores(bB, sig(pb), thr), thr))
     sat.append(sig(pb))
 

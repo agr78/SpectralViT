@@ -1,18 +1,6 @@
-"""Run-to-run reproducibility of hca_sweep.py, measured from a deliberate repeat pass.
+"""Run-to-run reproducibility of hca_sweep.py.
 
-Two independent runs of the SAME (n, seed, fold, arm) should agree exactly if training is
-deterministic given the seed. They do not: 53 rank-arm cells duplicated by accident at
-n=1000 differed by a mean of 0.0097 AUC and a max of 0.0515. That sample is confined to the
-three rank arms, which appear only in the supplement's ablation, so it cannot bound the
-error on the arms the main tables report. This script measures the main arms directly.
-
-The cause is not rank-specific: 'fixrank' holds its weights as a buffer and adds no
-parameters, yet reproduces worst (mean 0.0143), which rules out an RNG-stream explanation.
-The two runs landed on different nodes, so GPU-level reduction order is the leading
-candidate -- and that would apply to every arm.
-
-usage: python repro_check.py 25          # compares _rep_s* against _ep500_s* at n=25
-"""
+usage: python repro_check.py <n>"""
 import glob, sys
 import numpy as np
 import pandas as pd

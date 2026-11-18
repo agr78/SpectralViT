@@ -1,9 +1,4 @@
-"""Basis x capacity selection on MedMNIST3D: does a wider grid help or hurt?
-
-61 configs (basis family x its own capacity parameter) x 6 datasets x 5 seeds, with the
-inner CV score from medmnist_cv.py computed inside the 25 training volumes only. Compared
-against the 28-arm grid, where dataset-level CV reached +0.0498 leave-one-seed-out.
-"""
+"""Basis against capacity selection on MedMNIST3D over a wider grid."""
 import glob, os, re
 import numpy as np, pandas as pd
 from scipy.stats import ttest_rel, spearmanr

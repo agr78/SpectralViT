@@ -1,13 +1,5 @@
-"""Can a linear probe on the 25 training volumes pick the right tokenizer?
-
-Honest by construction: for each (dataset, seed) the probe sees only the same 25 volumes
-the ViT trains on, scored by repeated inner CV inside them. Everything data-dependent --
-the PCA basis, the scalers -- is fit on the inner-train rows alone. The MedMNIST test
-split is never opened here; it enters only afterwards, when the arm the probe chose is
-looked up in the ViT results that were already computed.
-
-Compared against fixing pca_energy, the best single arm, on the same cells.
-"""
+"""Whether a linear probe on the training volumes can pick the tokenizer."""
+from paths import DATA, RESULTS
 import numpy as np, pandas as pd, os, sys
 from scipy import fft
 from sklearn.decomposition import PCA
@@ -18,8 +10,8 @@ from sklearn.metrics import roc_auc_score, accuracy_score
 
 NCLS={'organmnist3d':11,'nodulemnist3d':2,'adrenalmnist3d':2,
       'fracturemnist3d':3,'vesselmnist3d':2,'synapsemnist3d':2}
-PATH=lambda d: ('/agent-home/medmnist/organmnist3d.npz' if d=='organmnist3d'
-                else f'/workspace/data/medmnist/{d}.npz')
+PATH=lambda d: (f'{DATA}/medmnist/organmnist3d.npz' if d=='organmnist3d'
+                else f'{DATA}/medmnist/{d}.npz')
 SIDE, NB, REP = 14, 12, 4
 ARMS=['pca16','dct','energy','pca_energy','concat','energy_cat','dct_energy','square']
 
@@ -56,7 +48,6 @@ def bandE(V):
 
 
 def build(arm, Vfit, Vapp, D_fit, D_app, E_fit, E_app):
-    """Fit anything data-dependent on Vfit/D_fit/E_fit only."""
     f=Vfit.reshape(len(Vfit),-1)
     parts_fit, parts_app = [], []
     if arm.startswith('pca') or arm in ('concat','energy_cat','square'):
@@ -103,5 +94,5 @@ for ds,ncls in NCLS.items():
                               else accuracy_score(ys[va],p.argmax(1)))
             rows.append(dict(dataset=ds,seed=seed,arm=arm,probe=float(np.mean(sc))))
             print('%-17s s%d %-12s probe %.3f' % (ds,seed,arm,np.mean(sc)),flush=True)
-pd.DataFrame(rows).to_csv('/workspace/results/probe_select.csv',index=False)
+pd.DataFrame(rows).to_csv(f'{RESULTS}/probe_select.csv',index=False)
 print('\nwrote results/probe_select.csv')

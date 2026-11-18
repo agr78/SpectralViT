@@ -1,11 +1,6 @@
-"""Five-test battery on the 3D DCT basis, with isotropic mode selection.
-
-Compares the original row-major truncation (which keeps only fx==0 modes)
-against isotropic low-frequency selection, then runs the full battery on
-whichever cell wins on seed-averaged internal AUC.
-"""
+"""Five-test battery on the 3D DCT basis, with isotropic mode selection."""
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
 OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
@@ -53,7 +48,6 @@ def oof_ext(X0, X1, y, seed):
                  s2.transform(X1), s3.transform(Cb), seed)
     return roc_auc_score(y, pr), pb, m
 
-# ---------- the search space: DCT, two mode-selection schemes, two K ----------
 rows, PRED, SEEDPB = [], {}, {}
 for sel in ['rowmajor', 'iso']:
     for K in [8, 16]:

@@ -1,6 +1,7 @@
-"""Which participants.tsv columns are complete enough to label all 897 subjects?"""
+"""Which participants.tsv columns are complete enough to label every subject."""
+from paths import RAW
 import pandas as pd
-p='/autofs/vast/lemon/data_instantsurfer_uncurated/HCP/participants.tsv'
+p=f'{RAW}/HCP/participants.tsv'
 try: d=pd.read_csv(p, sep='\t')
 except Exception: d=pd.read_csv(p, sep=r'\s+')
 print(f'{len(d)} rows\n')

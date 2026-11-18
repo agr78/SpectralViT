@@ -1,15 +1,9 @@
-"""Test 5 on the final configuration: remove one input stream at test time only.
+"""Remove one input stream at test time and rescore.
 
-Trains normally, then hands the trained model degraded inputs. `zero` gives a
-constant the model can partly ignore; `shuffle` gives another patient's values,
-which preserves the marginal distribution. A model that ignores a stream is
-unaffected by both.
-
-usage: ablate5.py [nseeds]
-"""
+usage: ablate5.py [nseeds]"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
-ABL_OUT = os.path.join(REPO, 'docs', 'dbs_3d')   # `OUT` is clobbered by the sc_worker exec
+ABL_OUT = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 sys.path.insert(0, REPO); sys.path.insert(0, SPDIR); os.chdir(REPO)

@@ -1,18 +1,4 @@
-"""Why does log|FFT| transfer when DCT and PCA do not?
-
-Two candidate mechanisms, both testable without outcome labels:
-
-  translation   the crop is centred on a computed centroid, and CHH centroids
-                come from masks on coarser data, so alignment error is a
-                site-dependent nuisance. |FFT| discards phase and is invariant
-                to it; DCT is not.
-
-  scaling       a site difference in intensity scale is multiplicative in |FFT|,
-                which per-feature standardisation cannot remove. In log space it
-                is additive, which standardisation removes exactly.
-
-Each basis is perturbed and the relative feature change measured.
-"""
+"""Compare cross-site transfer across the log-magnitude, DCT and PCA bases."""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 OUT = os.path.join(REPO, 'docs', 'dbs_3d')

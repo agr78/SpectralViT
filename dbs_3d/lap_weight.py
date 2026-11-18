@@ -1,5 +1,5 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR); OUT = os.path.join(REPO,'docs','dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO,'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
@@ -15,8 +15,6 @@ dev=torch.device('cuda'); T=lambda a: torch.tensor(a,dtype=torch.float32,device=
 t0=time.time(); log=lambda m: print(f"[{time.time()-t0:5.0f}s] {m}",flush=True)
 
 def dct_eigs(K, shape):
-    """Neumann-Laplacian eigenvalues of the DCT modes actually used, in the
-       same order basis3 emits them: lambda = sum_d 2(1-cos(pi k_d / N_d))"""
     k=int(round(K**(1/3)))+1
     idx=[(a,b,c) for a in range(k) for b in range(k) for c in range(k)][:K]
     N=shape

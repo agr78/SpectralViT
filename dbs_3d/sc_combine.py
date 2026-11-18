@@ -1,4 +1,4 @@
-"""Combine the multi-model scorecard: cells + permutation chunks -> tests 1-4."""
+"""Combine the multi-model scorecard cells and permutation chunks."""
 import sys, os, glob, pickle
 SPDIR = os.path.dirname(os.path.abspath(__file__)); REPO = os.path.dirname(SPDIR)
 SC = os.path.join(REPO, 'docs', 'dbs_3d', 'sc')
@@ -24,13 +24,11 @@ for m in models:
     r = cells[best]
     ii, ee = r['internal'], r['external']
 
-    # TEST 1: family-wise null over that model's own K cells
     R = np.array([rankdata(cells[k]['ens']) for k in ks])
     auc = lambda y: (R @ y - n1*(n1+1)/2)/(n1*n0)
     obs = auc(bB); mx = np.array([auc(bB[rng.permutation(n)]).max() for _ in range(5000)])
     fw = (mx >= obs.max()).mean()
 
-    # TEST 4: internal permutation, from the chunks
     ch = sorted(glob.glob(os.path.join(SC, f'perm_{m.replace(" ","_")}_{best[1]}_*.pkl'))) or sorted(glob.glob(os.path.join(SC, f'perm_{m.replace(" ","_")}_*.pkl')))
     if ch:
         null = np.concatenate([pickle.load(open(c, 'rb')) for c in ch])

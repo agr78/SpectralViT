@@ -1,16 +1,11 @@
 """Diagnose HCP subject matching: how many files, how many subjects, how many matched.
 
-The loader appends one volume per matching file with no deduplication, so a subject with
-several T1w files enters the dataset more than once and StratifiedKFold can place copies
-on both sides of a split. This reports the unmatched count and the duplicate count
-without reading any image data.
-
-usage: python hcp_match_check.py
-"""
+usage: python hcp_match_check.py"""
+from paths import RAW
 import os, re, collections
 import pandas as pd
 
-HCP_DIR = '/autofs/vast/lemon/data_instantsurfer_uncurated/HCP'
+HCP_DIR = f'{RAW}/HCP'
 TSV = os.path.join(HCP_DIR, 'participants.tsv')
 
 try:
@@ -21,7 +16,6 @@ print(f'participants.tsv: {len(df)} rows, columns: {list(df.columns)[:8]}')
 age_col = [c for c in df.columns if 'AGE' in c.upper()][0]
 print(f'age column: {age_col!r}; values: {sorted(df[age_col].astype(str).unique())[:8]}')
 
-# the id column the notebook would pick, and what the ids look like
 for c in df.columns:
     if re.search(r'particip|subject|sub_?id|^id$', str(c), re.I):
         print(f'id column {c!r}: e.g. {list(df[c].astype(str))[:5]}')

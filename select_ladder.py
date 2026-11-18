@@ -1,19 +1,14 @@
 """Emit the reporting job list for one sample size of the ladder sweep.
 
-Reads results/ladder_cv/n<N>/<ds>/<cfg>/{d,r}<seed0>/medmnist_cv.csv, averages the pooled
-out-of-fold AUC over every draw block, and picks the argmax separately for the spectral
-ladder and for the spatial patch grid. Blocks named r<seed0> are short blocks carrying the
-remainder when the draw count is not a multiple of five; they are weighted by their own
-number of draws so a 2-draw rung is not dominated by a 5-draw block.
-Usage: python select_ladder.py 100
-"""
+usage: python select_ladder.py <n>"""
+from paths import DATA, RESULTS
 import glob, os, sys, pandas as pd
 N = int(sys.argv[1])
-ROOT = f'/workspace/results/ladder_cv/n{N}'
-G = pd.read_csv('/workspace/results/medmnist_grid_configs.tsv', sep='\t', header=None,
+ROOT = f'{RESULTS}/ladder_cv/n{N}'
+G = pd.read_csv(f'{RESULTS}/medmnist_grid_configs.tsv', sep='\t', header=None,
                 names=['cfg', 'env'])
 ENV = dict(zip(G.cfg, G.env))
-NPZ = {'organmnist3d': '/agent-home/medmnist/organmnist3d.npz'}
+NPZ = {'organmnist3d': f'{DATA}/medmnist/organmnist3d.npz'}
 rows = []
 for f in glob.glob(f'{ROOT}/*/*/[dr]*/medmnist_cv.csv'):
     p = f.split('/')
@@ -34,4 +29,4 @@ for ds, q in C.groupby('ds'):
     cfg = spec.idxmax()
     patch = int(spat.idxmax().split('_p')[1])
     print('\t'.join([ds, str(patch), f'{cfg}_P{patch}_N{N}', cfg, ENV[cfg],
-                     NPZ.get(ds, f'/workspace/data/medmnist/{ds}.npz')]))
+                     NPZ.get(ds, f'{DATA}/medmnist/{ds}.npz')]))

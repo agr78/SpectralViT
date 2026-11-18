@@ -1,11 +1,11 @@
 """Characterize a candidate HCP download: structure, metadata, subject count, labels.
 
-usage: python hcp_explore.py [root]
-"""
+usage: python hcp_explore.py [root]"""
+from paths import RAW
 import os, sys, re, collections
 import pandas as pd
 
-root = sys.argv[1] if len(sys.argv) > 1 else '/autofs/vast/lemon/data_original_downloads/ahcp_data'
+root = sys.argv[1] if len(sys.argv) > 1 else f'{RAW}/ahcp_data'
 print(f'root: {root}')
 print(f'exists: {os.path.isdir(root)}')
 if not os.path.isdir(root):

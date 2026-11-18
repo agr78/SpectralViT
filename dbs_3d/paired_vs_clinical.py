@@ -1,12 +1,6 @@
 """Paired comparison of SpectralViT against the clinical-only baseline.
 
-The seed SD in the baseline table measures initialisation variance. The question
-"does imaging add anything over covariates on these patients" needs patient
-variance instead, so this resamples the 37 CHH patients and recomputes the AUC
-difference on each resample, with both models scored on the same patients.
-
-usage: paired_vs_clinical.py [nseeds]
-"""
+usage: paired_vs_clinical.py [nseeds]"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -32,12 +26,10 @@ K = 16
 IDX = low_modes(K, SHAPE, 'lap'); LAM = eigvals(IDX, SHAPE)
 SA = basis3_iso(VA, '3DDCT', K, BB, 'lap'); SB = basis3_iso(VB, '3DDCT', K, BB, 'lap')
 
-# clinical only, deterministic
 sC = StandardScaler().fit(Ca)
 clin = LogisticRegression(C=1.0, max_iter=2000, class_weight='balanced').fit(sC.transform(Ca), bA)
 p_clin = sig(clin.decision_function(sC.transform(Cb)))
 
-# ours, seed-ensembled
 sS = StandardScaler().fit(SA)
 preds = []
 for sd in range(NS):
@@ -47,7 +39,7 @@ for sd in range(NS):
     lf = nn.BCEWithLogitsLoss()
     xt, ct = T(sS.transform(SA)), T(sC.transform(Ca))
     yt = torch.tensor(bA, dtype=torch.float32, device=dev)
-    for _ in range(200):                        # early stop: keeps probabilities unsaturated
+    for _ in range(200):
         opt.zero_grad(); lf(m(xt, ct), yt).backward(); opt.step()
     m.eval()
     with torch.no_grad():
@@ -72,7 +64,6 @@ print(f"  mean difference {d.mean():+.3f}")
 print(f"  95% CI [{np.percentile(d,2.5):+.3f}, {np.percentile(d,97.5):+.3f}]")
 print(f"  P(ours > clinical) = {(d > 0).mean():.3f}")
 print()
-# how many patients drive it
 dis = np.where((p_ours > p_clin) != (bB == 1))[0]
 print(f"patients where the two models disagree in rank order: {len(dis)} of {n}")
 pickle.dump(dict(p_ours=p_ours, p_clin=p_clin, bB=bB, diff=d),

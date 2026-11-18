@@ -1,17 +1,7 @@
 """IXI sex classification with properly nested capacity selection.
 
-The previous pipeline chose the component count and patch size with a 5-fold CV over the
-whole dataset, then reported on the same KFold(random_state=0) partition -- so the
-hyperparameter was selected on the reporting folds (model-selection bias; Varma & Simon
-2006, Cawley & Talbot 2010). Here selection runs inside each outer fold on its training
-split only, so no test subject influences any choice.
-
-PCA components are nested: the first k columns of a 128-component whitened transform are
-exactly the k-component whitened transform, so one PCA fit per inner fold serves every
-candidate. That turns 60 PCA fits into 15.
-
-usage: python ixi_nested.py [--smoke]
-"""
+usage: python ixi_nested.py [--smoke]"""
+from paths import RESULTS
 import os, sys, json, time
 import numpy as np, pandas as pd, torch, torch.nn as nn, torch.optim as optim
 from sklearn.decomposition import PCA
@@ -27,34 +17,21 @@ from loader import load_ixi_data
 
 SMOKE   = '--smoke' in sys.argv
 IXI_DIR = os.environ.get('IXI_DIR', '/checkpoints/data/IXI_extracted/')
-OUT     = os.environ.get('IXI_OUT', '/workspace/results/ixi_nested')
+OUT     = os.environ.get('IXI_OUT', f'{RESULTS}/ixi_nested')
 VOL, LR, BATCH, NF, PHYS, EFF = 96, 1e-4, 8, 5, 2, 8
 ACC     = EFF // PHYS
 EPOCHS  = 3 if SMOKE else int(os.environ.get('IXI_EPOCHS', 500))
-SEL_EP  = 3 if SMOKE else int(os.environ.get('IXI_SEL_EPOCHS', 200))   # convergent, cheaper
+SEL_EP  = 3 if SMOKE else int(os.environ.get('IXI_SEL_EPOCHS', 200))
 INNER_K = 2 if SMOKE else int(os.environ.get('IXI_INNER_K', 3))
 NCOMPS  = [16, 32] if SMOKE else [16, 32, 64, 128]
 PATCHES = [8, 12] if SMOKE else [8, 12, 16]
-# The U-net and Swin had no grid on IXI: Swin ran at library defaults and the U-net at
-# base_channels=7, picked to match a published parameter count. Selecting four arms and
-# hand-picking the strongest baseline is the asymmetry that invalidated the DBS table.
 CHANS   = [4, 8] if SMOKE else [4, 8, 16]
 SWEMB   = [16, 32] if SMOKE else [16, 32, 64]
-# Simple spectral-feature baselines on the same per-fold PCA components, which the
-# reviews asked for: without them the transformer's contribution cannot be separated
-# from the representation's. Grids mirror hca_regress.py so the two experiments compare
-# the same models. WD descends so a tie resolves to the more regularized fit.
 WD      = [0.5, 0.05] if SMOKE else [0.5, 0.05, 0.005]
 HID     = [2, 6] if SMOKE else [2, 6, 16]
-# 'match' (the compact spatial ViT) is no longer reported: Swin is the better
-# parameter-matched spatial baseline at 11k parameters against the compact ViT's 28k.
-# The arm is still implemented and runs with IXI_ARMS=match.
 ARMS_ON = [a for a in os.environ.get(
     'IXI_ARMS', 'spec,spat,swin,unet,logreg,mlp').split(',') if a]
 TAGSUF = os.environ.get('IXI_SUFFIX', '')
-# OUT lives on spacelink, which is not readable from everywhere the results are needed.
-# Mirror each cell into the repo's results/ as hca_sweep.py and hca_regress.py do, so the
-# curve can be read without reaching for the scratch filesystem.
 MIRROR = os.environ.get('IXI_MIRROR', os.path.expanduser('~/SpectralViT/results/ixi_curve'))
 os.makedirs(OUT, exist_ok=True)
 if MIRROR:
@@ -65,11 +42,6 @@ if MIRROR:
 
 
 def save_npz(name, **arrays):
-    """Write a cell to OUT, then fail-soft to the mirror.
-
-    The mirror sits on a quota-limited filesystem; a failure there once truncated a run's
-    outputs, so it must never raise and never affect what lands in OUT.
-    """
     np.savez(os.path.join(OUT, name), **arrays)
     if MIRROR:
         try:
@@ -79,9 +51,6 @@ def save_npz(name, **arrays):
 seed_everything(0)
 dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# IXI_CACHE points at the prefix ixi_cache.py wrote. /checkpoints is a local disk on the
-# container host, so a host without it (durian, the cluster) reads the cached array instead.
-# The cache is saved straight from load_ixi_data, so both paths see identical inputs.
 CACHE = os.environ.get('IXI_CACHE', '')
 if CACHE and os.path.exists(CACHE + '.npy'):
     X = np.load(CACHE + '.npy')
@@ -92,10 +61,9 @@ if CACHE and os.path.exists(CACHE + '.npy'):
 else:
     X, Y = load_ixi_data(IXI_DIR, os.path.join(IXI_DIR, 'IXI.csv'), VOL)
 if SMOKE: X, Y = X[:40], Y[:40]
-SUB = int(os.environ.get('IXI_N', 0))          # 0 = use every subject
-SEED = int(os.environ.get('IXI_SEED', 0))      # subsample draw, varies the reported spread
+SUB = int(os.environ.get('IXI_N', 0))
+SEED = int(os.environ.get('IXI_SEED', 0))
 if SUB and SUB < len(Y):
-    # Stratified on sex so the class balance of the full cohort is preserved at every size.
     rng = np.random.RandomState(SEED)
     keep = []
     for c in np.unique(Y):
@@ -108,16 +76,6 @@ if SUB and SUB < len(Y):
 Xf = X.reshape(len(X), -1)
 print(f'IXI: {len(X)} volumes {X.shape[1:]}, labels {np.bincount(Y.astype(int))}', flush=True)
 def folds(n_splits, labels, seed=0):
-    """Stratified folds, falling back to plain KFold if a class is too small.
-
-    The original pipeline used unstratified KFold, which is harmless at n=566 (folds of
-    113) but not on the subsampled curve: at n=25 a test fold holds 5 subjects and an
-    inner validation fold about 7, so a single-class fold is likely and roc_auc_score
-    would raise.
-    """
-    # IXI_STRATIFY=0 reproduces the unstratified partition the full-cohort table was
-    # run on, so arms added later can be scored on the same folds as the ones already
-    # reported rather than on a partition that merely resembles them.
     if (os.environ.get('IXI_STRATIFY', '1') != '0'
             and np.bincount(labels.astype(int), minlength=2).min() >= n_splits):
         return StratifiedKFold(n_splits=n_splits, shuffle=True, random_state=seed)
@@ -125,7 +83,6 @@ def folds(n_splits, labels, seed=0):
 
 
 def auc_safe(y, p):
-    """AUC, or nan when a fold is single-class; one_se already ignores nan."""
     y = np.asarray(y)
     return roc_auc_score(y, p) if len(np.unique(y)) > 1 else float('nan')
 
@@ -137,7 +94,6 @@ kf = folds(NF_, Y, seed=SEED)
 def fit_train(model, xtr, ytr, epochs, bs, acc, wd=None):
     ld = DataLoader(TensorDataset(xtr, torch.from_numpy(ytr).float()),
                     batch_size=bs, shuffle=True)
-    # wd=None keeps AdamW's default, so the arms that predate this are unchanged.
     opt = (optim.AdamW(model.parameters(), lr=LR) if wd is None
            else optim.AdamW(model.parameters(), lr=LR, weight_decay=wd))
     sch = OneCycleLR(opt, max_lr=LR, steps_per_epoch=max(1, len(ld) // acc), epochs=epochs)
@@ -159,7 +115,6 @@ def predict(model, xte, bs):
 
 
 def one_se(scores, cands):
-    """Smallest candidate whose mean is within one SE of the best (higher is better)."""
     means = {c: np.nanmean(v) for c, v in scores.items()}
     if all(m != m for m in means.values()): return cands[0]
     best = max(means, key=lambda c: means[c])
@@ -171,15 +126,12 @@ def one_se(scores, cands):
 
 
 def select_spectral(tr):
-    """Inner CV over component counts, one PCA fit per inner fold (components nest)."""
     inner = folds(INNER_K, Y[tr])
-    # PCA rank is bounded by the inner-training sample count, so restrict the grid once.
     kmin = int(len(tr) * (INNER_K - 1) / INNER_K) - 1
     cands = [c for c in NCOMPS if c <= kmin] or [max(2, kmin)]
     scores = {c: [] for c in cands}
     for i_i, v_i in inner.split(tr, Y[tr]):
         itr, iva = tr[i_i], tr[v_i]
-        # PCA cannot exceed the inner-training sample count; drop candidates above it.
         pca = PCA(n_components=max(cands), whiten=True, random_state=0).fit(Xf[itr])
         Ztr, Zva = pca.transform(Xf[itr]), pca.transform(Xf[iva])
         for c in cands:
@@ -192,7 +144,6 @@ def select_spectral(tr):
 
 
 def select_volume(tr, cands, build):
-    """Inner CV over a volume arm's capacity grid; build(c) returns the model."""
     inner = folds(INNER_K, Y[tr])
     scores = {c: [] for c in cands}
     for i_i, v_i in inner.split(tr, Y[tr]):
@@ -208,12 +159,6 @@ def select_volume(tr, cands, build):
 
 
 class _Flat(nn.Module):
-    """Drop the trailing singleton so these arms match the others' [B] output.
-
-    LogisticRegression and MultiLayerPerceptron return [B, 1]; wrapping here rather than
-    changing networks.py leaves the HCA and DBS experiments that use them untouched.
-    """
-
     def __init__(self, inner):
         super().__init__()
         self.inner = inner
@@ -223,18 +168,11 @@ class _Flat(nn.Module):
 
 
 def build_simple(tag, ncomp, hp):
-    """Logistic regression or a 2-layer perceptron on ncomp PCA components."""
     return _Flat(LogisticRegression(in_features=ncomp) if tag == 'logreg'
                  else MultiLayerPerceptron(input_dim=ncomp, hidden_dim=hp))
 
 
 def select_simple(tr, tag):
-    """Inner CV jointly over component count and the arm's own hyperparameter.
-
-    Candidates are ordered smallest-and-most-regularized first so the one-standard-error
-    rule breaks ties toward the simpler fit, as it does for every other arm. Components
-    nest, so one PCA fit per inner fold still serves the whole grid.
-    """
     inner = folds(INNER_K, Y[tr])
     kmin = int(len(tr) * (INNER_K - 1) / INNER_K) - 1
     ncs = [c for c in NCOMPS if c <= kmin] or [max(2, kmin)]

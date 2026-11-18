@@ -1,28 +1,11 @@
 """Regenerate table:medmnist, the MedMNIST3D sample-size curve.
 
-The table was originally computed by a script written to the session scratchpad, which is
-wiped on restart, so nothing in the repo rebuilt it and its source could not be found by
-looking under results/medmnist* -- the data lives under results/ladder_* instead. This is
-that script, recovered and pinned.
-
-Two directories feed it, both produced by jobs/run_ladder_sweep.sh:
-
-  results/ladder_report_n<N>.tsv        the config select_ladder.py picked at size N,
-                                        one line per cohort: ds, patch, tag, cfg
-  results/ladder_100/<tag>/<ds>/        the reporting run for that pick
-
-Sizes are 25..800 with 40, 20, 10, 5, 2 and 1 draws, so draws x n is held near 1000 at
-every rung. Reporting draws are seeds 5-104; the selector uses seeds 105+ and is disjoint.
-
-Bold in the table marks a significant win, a dagger a significant loss, both at p < 0.05
-on a paired t-test over the draws of that cell.
-
-usage: python make_medmnist_curve.py
-"""
+usage: python make_medmnist_curve.py"""
 import os
 
 import numpy as np
 import pandas as pd
+from scipy import stats
 from scipy.stats import ttest_rel
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -32,8 +15,6 @@ DS = ['organmnist3d', 'nodulemnist3d', 'adrenalmnist3d',
       'fracturemnist3d', 'vesselmnist3d', 'synapsemnist3d']
 NICE = dict(zip(DS, ['Organ', 'Nodule', 'Adrenal', 'Fracture', 'Vessel', 'Synapse']))
 
-# table:medmnist as published, in units of AUC. Asserted at the end so that a change in
-# either the selection or the reporting runs fails loudly instead of printing a new table.
 PUB = {
     'Organ':    [+.068, +.039, +.014, +.001, -.003, -.003],
     'Nodule':   [+.156, +.111, +.100, +.077, +.019, +.015],
@@ -52,11 +33,10 @@ for n in NS:
         continue
     for line in open(f):
         p = line.rstrip('\n').split('\t')
-        SEL[(n, p[0])] = (p[3], int(p[1]), p[2])      # cfg, patch, tag
+        SEL[(n, p[0])] = (p[3], int(p[1]), p[2])
 
 
 def cell(n, ds):
-    """(cfg, patch, spectral AUCs, spatial AUCs) for one (size, cohort), or None."""
     if (n, ds) not in SEL:
         return None
     cfg, patch, tag = SEL[(n, ds)]
@@ -87,9 +67,9 @@ for ds in DS:
     got[NICE[ds]] = row
     L.append(line)
 
-pooled, won = [], []
+pooled, won, pooled_p = [], [], []
 for n in NS:
-    V, B, w, tot = [], [], 0, 0
+    V, B, w, tot, per_cohort = [], [], 0, 0, []
     for ds in DS:
         c = cell(n, ds)
         if c is None:
@@ -100,11 +80,14 @@ for n in NS:
         tot += 1
         if (v - b).mean() > 0 and ttest_rel(v, b).pvalue < 0.05:
             w += 1
+        per_cohort.append(float((v - b).mean()))
     if not V:
         pooled.append(None)
         won.append('--')
         continue
     pooled.append(float((np.array(V) - np.array(B)).mean()))
+    pooled_p.append(float(stats.ttest_1samp(np.array(per_cohort), 0).pvalue)
+                    if len(per_cohort) > 1 else float('nan'))
     won.append(f'{w}/{tot}')
 L.append(f"{'Pooled':<10}" + ''.join(f'{p:+11.3f} ' if p is not None else f'{"--":>12}' for p in pooled))
 L.append(f"{'Won':<10}" + ''.join(f'{x:>12}' for x in won))
@@ -128,6 +111,14 @@ if won != PUB_WON:
     bad.append(f'cohorts won {won} != published {PUB_WON}')
 
 print(f'\nwrote {OUT}')
+PUB_POOLED_P = {25: 0.036, 400: 0.79, 800: 0.67}
+badp = [f'n={n}: pooled p {pooled_p[NS.index(n)]:.3f} against the text\'s {v}'
+        for n, v in PUB_POOLED_P.items()
+        if round(pooled_p[NS.index(n)], 3 if n == 25 else 2) != v]
+if badp:
+    raise SystemExit('DOES NOT MATCH sec:medmnist:\n  ' + '\n  '.join(badp))
+print('matches sec:medmnist pooled p (cohort as unit): '
+      + ', '.join(f'n={n} {pooled_p[NS.index(n)]:.3f}' for n in PUB_POOLED_P))
 if bad:
     raise SystemExit('DOES NOT MATCH table:medmnist:\n  ' + '\n  '.join(bad))
 print('matches table:medmnist exactly (deltas, pooled row and cohorts-won row)')

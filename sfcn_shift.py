@@ -1,24 +1,6 @@
 """IXI distribution-shift comparison: spectral ViT vs fine-tuned SFCN, nested selection.
 
-Both models train on uncorrupted images only; Rician noise is applied to the held-out
-fold at test time, so the comparison is zero-shot robustness to a shift in the test
-distribution. Identical noise realisations go to both models, keeping the comparison
-paired.
-
-Two defects in the notebook version are fixed:
-  * component count was selected by 5-fold CV over the whole dataset and then reported on
-    that same KFold(random_state=0) partition -- selection measured on the test folds.
-    Selection now runs inside each outer fold on its training split alone.
-  * only the spectral side had a hyperparameter grid; SFCN ran at a fixed fine-tuning
-    learning rate. Both sides now get a grid, chosen by the same rule.
-
-Volumes are full size (160x192x160, the UK Biobank geometry the weights expect), so this
-needs roughly 12 GB of RAM for the PCA training matrix.
-
-usage: python sfcn_shift.py [--smoke]
-env: SFCN_NII_DIR SFCN_CACHE_DIR SFCN_WEIGHTS SFCN_DP_MODEL SFCN_OUT
-     SFCN_N SFCN_SEED SFCN_SUFFIX  (one cell of the sample-size curve)
-"""
+usage: python sfcn_shift.py [--smoke]"""
 import os, sys, re, json, copy, time
 import numpy as np, pandas as pd, torch, torch.nn as nn, torch.optim as optim
 from sklearn.decomposition import PCA
@@ -30,7 +12,7 @@ NII   = os.environ.get('SFCN_NII_DIR',   '/checkpoints/data/IXI_extracted')
 CACHE = os.environ.get('SFCN_CACHE_DIR', '/checkpoints/data/IXI_cached_npy')
 WTS   = os.environ.get('SFCN_WEIGHTS',   '/checkpoints/run_20191008_00_epoch_last.p')
 DPM   = os.environ.get('SFCN_DP_MODEL',  '/checkpoints')
-OUT   = os.environ.get('SFCN_OUT',       '')   # set below, relative to the script
+OUT   = os.environ.get('SFCN_OUT',       '')
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, DPM); sys.path.insert(0, HERE)
 from dp_model.model_files.sfcn import SFCN
@@ -46,10 +28,10 @@ SEL_SPEC = 3 if SMOKE else int(os.environ.get('SFCN_SEL_SPEC', 200))
 SEL_SFCN = 2 if SMOKE else int(os.environ.get('SFCN_SEL_SFCN', 20))
 SPEC_LR, BATCH, PATIENCE = 1e-4, 2, 5
 NCOMPS   = [16, 32] if SMOKE else [16, 32, 64, 128]
-SFCN_LRS = [1e-5, 1e-4] if SMOKE else [1e-5, 1e-4, 1e-3]      # ascending: ties -> gentler
+SFCN_LRS = [1e-5, 1e-4] if SMOKE else [1e-5, 1e-4, 1e-3]
 SNRS     = [None, 9, 4, 1, 0.25, 0.111]
-SUB      = int(os.environ.get('SFCN_N', 0))        # 0 = every subject
-SEED     = int(os.environ.get('SFCN_SEED', 0))     # subsample draw and fold partition
+SUB      = int(os.environ.get('SFCN_N', 0))
+SEED     = int(os.environ.get('SFCN_SEED', 0))
 TAGSUF   = os.environ.get('SFCN_SUFFIX', '')
 OUT = OUT or os.path.join(HERE, 'results', 'sfcn_shift')
 os.makedirs(OUT, exist_ok=True)
@@ -58,7 +40,6 @@ dev = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 
 def rician(x, snr, rng):
-    """Rician noise at a given SNR, then renormalise. Matches the notebook exactly."""
     if snr is None: return x
     xm = x.min(); xp = x - xm
     sigma = np.mean(xp[xp > 0]) / snr
@@ -70,7 +51,6 @@ def rician(x, snr, rng):
 df = pd.read_csv(os.path.join(NII, 'IXI.csv'))
 idc = [c for c in df.columns if 'ID' in c.upper()][0]
 sxc = [c for c in df.columns if 'SEX' in c.upper()][0]
-# male=1, female=0 -- the pretrained SFCN's convention, inverted from loader.py
 look = dict(zip(df[idc].astype(int), df[sxc].map({1: 1, 2: 0})))
 paths, labels = [], []
 for f in sorted(os.listdir(NII)):
@@ -82,8 +62,6 @@ for f in sorted(os.listdir(NII)):
 paths, Y = np.array(paths), np.array(labels, dtype=np.float32)
 if SMOKE: paths, Y = paths[:24], Y[:24]
 if SUB and SUB < len(Y):
-    # Stratified on sex so every size keeps the cohort's class balance. Subsampling
-    # happens before Xf is built, so the flat matrix costs n volumes rather than 566.
     rng = np.random.RandomState(SEED)
     keep = []
     for c in np.unique(Y):
@@ -177,7 +155,6 @@ rows = []
 for fold, (tr, te) in enumerate(outer.split(np.zeros(len(Y)), Y), 1):
     t0 = time.time()
     inner = StratifiedKFold(n_splits=INNER_K, shuffle=True, random_state=0)
-    # PCA rank is bounded by the inner-training sample count; restrict the grid once.
     kmin = int(len(tr) * (INNER_K - 1) / INNER_K) - 1
     cands = [c for c in NCOMPS if c <= kmin] or [max(2, kmin)]
     sc_spec = {c: [] for c in cands}
@@ -204,7 +181,6 @@ for fold, (tr, te) in enumerate(outer.split(np.zeros(len(Y)), Y), 1):
     ncomp, sfcn_lr = one_se(sc_spec, cands), one_se(sc_sfcn, SFCN_LRS)
     print(f'fold {fold}: selected ncomp={ncomp} sfcn_lr={sfcn_lr:g}', flush=True)
 
-    # refit on the full training split, early stopping on a slice of it
     vcut = max(2, int(0.1 * len(tr)))
     itr, iva = tr[vcut:], tr[:vcut]
     pca = PCA(n_components=ncomp, whiten=True, random_state=0).fit(Xf[itr])
@@ -217,7 +193,7 @@ for fold, (tr, te) in enumerate(outer.split(np.zeros(len(Y)), Y), 1):
         ps, pf = [], []
         with torch.no_grad():
             for p_ in paths[te]:
-                img = rician(np.load(p_).astype(np.float32), snr, rng)   # same noise, both
+                img = rician(np.load(p_).astype(np.float32), snr, rng)
                 x = torch.from_numpy(img).float().unsqueeze(0).unsqueeze(0).to(dev)
                 o = sfcn(x)
                 if isinstance(o, list): o = o[0]

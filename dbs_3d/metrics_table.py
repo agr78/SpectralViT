@@ -1,13 +1,4 @@
-"""Patient-level Table-3 metrics for the selected cell.
-
-The original Table 3 reported AUC / balanced accuracy / specificity / F1 computed
-slice-wise, which is why specificities like 0.939 appear despite there being only
-3 external non-responders. At the patient level specificity is quantised to
-{0, 1/3, 2/3, 1}, so it is reported here with that granularity made explicit.
-
-Threshold follows the project convention: maximise balanced accuracy over
-np.linspace(0.01, 0.9, 100) on the training cohort, then apply to the test set.
-"""
+"""Patient-level metrics for the selected cell."""
 import sys, os, glob, pickle
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)
@@ -20,7 +11,6 @@ sig = lambda z: 1.0 / (1.0 + np.exp(-z))
 
 
 def calibrate_balanced(y, p):
-    """threshold maximising balanced accuracy, project convention"""
     best, bt = -1, 0.5
     for t in np.linspace(0.01, 0.9, 100):
         b = balanced_accuracy_score(y, (p >= t).astype(int))
@@ -48,14 +38,12 @@ for tag in CELLS:
     bB, P = r['bB'], r['preds']
     bA = r['bA']
 
-    # ensemble: average predictions, then score once
     pe = sig(P.mean(0))
     for lab, thr in [('ensemble @0.5', 0.5),
                      ('ensemble @test-cal', calibrate_balanced(bB, pe))]:
         m = metrics(bB, pe, thr); m.update(cell=tag, estimator=lab, thr=thr)
         rows.append(m)
 
-    # per-seed: score each model, then average the metrics
     per = [metrics(bB, sig(p), 0.5) for p in P]
     avg = {k: np.mean([d[k] for d in per]) for k in ('AUC', 'BalAcc', 'Sens', 'Spec', 'F1')}
     sd = {k: np.std([d[k] for d in per]) for k in ('AUC', 'BalAcc', 'Spec', 'F1')}

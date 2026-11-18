@@ -1,18 +1,6 @@
 """How much the external operating point depends on the external cohort.
 
-The threshold transferred to the external cohort is a QUANTILE of the internal score
-distribution, mapped back through the external one (see make_table_dbs.py). No external
-label is involved, but the external scores are: the threshold applied to one patient is a
-percentile of all of them, so the decision rule depends on the test batch.
-
-This measures how much that matters, by refitting the threshold on every leave-one-out
-subset of the external cohort and re-scoring everyone against it. It also reports the
-operating quantile per model, which shows the transfer is not what produces the proposed
-model's specificity -- the spatial baselines reach the same specificity only by calling
-almost the whole cohort a non-responder.
-
-usage: python make_dbs_opstability.py
-"""
+usage: python make_dbs_opstability.py"""
 import os
 
 import numpy as np
@@ -20,8 +8,6 @@ import numpy as np
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT = os.path.join(HERE, 'results', 'dbs_opstability.txt')
 
-# Reuse make_table_dbs.py's loading, calibration and capacity selection rather than
-# restating them, so this cannot diverge from the table it qualifies.
 _src = open(os.path.join(HERE, 'make_table_dbs.py')).read()
 _g = {'__name__': 'dbs', '__file__': os.path.join(HERE, 'make_table_dbs.py')}
 exec(compile(_src.split('def table(grid, rule):')[0], 'dbs', 'exec'), _g)
@@ -30,7 +16,7 @@ C, bA, bB, cal, sel, MODELS, lab = (_g['C'], _g['bA'], _g['bB'], _g['cal'], _g['
 
 PROP = 'SpectralViT'
 PUB_Q = {'SpectralViT': 0.470, 'Spatial ViT': 0.955, 'Attention UNet': 0.970}
-PUB_LO, PUB_HI = 0.999341, 0.999346          # threshold range over leave-one-out
+PUB_LO, PUB_HI = 0.999341, 0.999346
 
 L = ['Operating quantile and its stability on the external cohort.', '',
      '%-24s %-12s %7s %12s %9s' % ('Model', 'Capacity', 'q', 'pred.neg', 'spec')]

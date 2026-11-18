@@ -1,7 +1,6 @@
-"""Tests 4 and 5 on one selected cell: internal permutation and imaging ablation.
+"""Internal permutation and imaging ablation for one selected cell.
 
-usage: final_tests.py <ordering> <K> <weight> [nperm]
-"""
+usage: final_tests.py <ordering> <K> <weight> [nperm]"""
 import sys, os
 SPDIR = os.path.dirname(os.path.abspath(__file__))
 REPO  = os.path.dirname(SPDIR)

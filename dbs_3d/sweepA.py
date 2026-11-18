@@ -1,7 +1,7 @@
 import sys, os
-SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', '/workspace/dbs_3d/x')))
+SPDIR = os.path.dirname(os.path.abspath(globals().get('__file__', 'x')))
 REPO  = os.path.dirname(SPDIR)
-OUT   = os.path.join(REPO, 'docs', 'dbs_3d')          # docs/ is gitignored
+OUT   = os.path.join(REPO, 'docs', 'dbs_3d')
 DATA  = os.environ.get('DBS_CLINICAL_DIR', os.path.join(REPO, 'docs'))
 CACHE = os.environ.get('DBS_CACHE_DIR', '/checkpoints')
 os.makedirs(OUT, exist_ok=True)
@@ -23,7 +23,6 @@ def combat(Xa,Xb):
         out.append((Z-gs)/np.sqrt(ds)*po+gr)
     return out
 def qnorm(Xa,Xb):
-    """quantile-map each CHH feature onto the MSW marginal"""
     out=np.empty_like(Xb)
     for j in range(Xa.shape[1]):
         r=np.argsort(np.argsort(Xb[:,j]))

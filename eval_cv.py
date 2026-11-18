@@ -1,10 +1,4 @@
-"""Did cross-validating every basis inside the 25 training volumes select the right one?
-
-Selection score is the pooled out-of-fold AUC over all 25 training volumes, computed by
-medmnist_cv.py with the same draw, basis construction and encoder as the reporting run.
-The MedMNIST test split is never read during selection; the test numbers below are the
-already-measured paired results for whichever arm the CV picked.
-"""
+"""Cross-validate every basis inside the training draw and score the selection."""
 import glob, os
 import numpy as np, pandas as pd
 from scipy.stats import ttest_rel, spearmanr

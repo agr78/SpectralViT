@@ -1,26 +1,6 @@
-"""Simulated pattern-classification sweep, persisted this time.
+"""Simulated pattern-classification sweep.
 
-Reproduces the sweep in sim.ipynb, which saved only its rendered figure: the per-seed AUCs
-were never written out, so the published curves could not be restyled or rechecked. One
-array cell covers a block of seeds at one noise level and writes its own npz, so the sweep
-is resumable and parallel.
-
-The notebook imported networks_common, removed from the repo in 276317c. For this argument
-set the combined networks.py is equivalent -- patch_size=1 makes input_proj the same
-Linear(1, d_model), learnable_rank_weights=False registers a buffer rather than drawing a
-parameter, and the construction order is unchanged -- so seeds line up with the original.
-
-Seeding matches the notebook exactly: seed_everything(seed) is called once per seed and
-the five sizes then run in order off that one stream, so a cell must cover whole seeds.
-
-Attention runs on the math SDPA backend. Training is full batch, so at n=100,000 the
-efficient kernel refuses the forward outright ("cannot produce valid seed and offset
-outputs when the batch size exceeds 65535"); math has no such limit and is the reference
-implementation, so it is used at every size rather than only the largest.
-
-env: SIM_NL_IDX SIM_BLOCK SIM_BLOCK_SIZE SIM_OUT
-usage: python sim_sweep.py [--smoke]
-"""
+usage: python sim_sweep.py [--smoke]"""
 import os, sys, time
 import numpy as np, torch, torch.optim as optim, torch.nn.functional as F
 from torch.nn.attention import sdpa_kernel, SDPBackend
@@ -51,7 +31,6 @@ print(f'noise {NL} seeds {SEEDS.start}-{SEEDS.stop - 1} sizes {SIZES} on {dev}',
 
 
 def build(ncomp):
-    """The two parameter-balanced models, with the notebook's simulation settings."""
     spec = SpectralViT(n_inputs=ncomp, embed_dim=16, n_heads=2, n_layers=2,
                        use_sigmoid=True, pooling='mean',
                        learnable_rank_weights=False, use_layer_norm=False).to(dev)

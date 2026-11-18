@@ -16,7 +16,7 @@ def clin_tables():
     B=pd.DataFrame(dict(sid=g(0),age=g(1),sex=g(2),dur=g(3),ledd=g(4),off=g(9),on=g(10))).dropna(subset=['sid'])
     for T in (A,B):
         T['sid']=T['sid'].astype(int)
-        T['ldopa']=(T['off']-T['on'])/T['off']     # levodopa responsiveness: the classic DBS predictor
+        T['ldopa']=(T['off']-T['on'])/T['off']
     return A.set_index('sid'),B.set_index('sid')
-SAFE=['age','sex','dur','ledd']                     # fully decoupled from the target
-FULL=['age','sex','dur','ledd','off','on','ldopa']  # includes OFF_pre, the target's denominator
+SAFE=['age','sex','dur','ledd']
+FULL=['age','sex','dur','ledd','off','on','ldopa']
