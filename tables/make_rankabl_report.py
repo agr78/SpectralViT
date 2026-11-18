@@ -1,0 +1,73 @@
+"""Regenerate the rank weight ablation figures quoted in sec:rankabl.
+
+usage: python tables/make_rankabl_report.py"""
+import os, sys
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))   # repository root: shared modules and paths.py
+import os
+
+import numpy as np
+import pandas as pd
+
+HERE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+R = os.path.join(HERE, 'results', 'regress')
+OUT = os.path.join(HERE, 'results', 'rankabl_report.txt')
+
+SRC = {
+    25:   [os.path.join(R, 'hca_reg_n25_ep500_10s.csv')],
+    50:   [os.path.join(R, 'hca_reg_n50_ep500_10s.csv')],
+    100:  [os.path.join(R, f'hca_reg_n100_ep500_s{s}.csv') for s in range(5)],
+    200:  [os.path.join(R, f'hca_reg_n200_ep500_s{s}.csv') for s in range(5)],
+    1000: [os.path.join(R, f'hca_reg_n1000_ep500_s{s}.csv') for s in range(5)],
+}
+ARMS = {'omit': 'SpectralViT hcp (Block-DCT)',
+        'fixed': 'SpectralViT fixrank (Block-DCT)',
+        'trained': 'SpectralViT rank (Block-DCT)',
+        'mean': 'MeanBaseline'}
+SIZES = [25, 50, 100, 200, 1000]
+TABLE_ROW = [7.64, 7.05, 6.20, 5.88, 5.23]
+
+
+def size(paths):
+    cell = {}
+    for p in paths:
+        d = pd.read_csv(p)
+        d = d[d.MAE.notna()]
+        for (model, seed), g in d.groupby(['Model', 'Seed']):
+            cell[(model, int(seed))] = g.MAE.mean()
+    out = {k: float(np.mean([v for (m, _), v in cell.items() if m == a]))
+           for k, a in ARMS.items()}
+    out['nseed'] = len({s for (m, s) in cell if m == ARMS['trained']})
+    return out
+
+
+res = {n: size(p) for n, p in SRC.items()}
+
+L = ['Rank weight ablation on HCP-Aging brain age, 500-epoch budget.', '']
+L.append(f"{'n':>6} {'seeds':>5} {'omit':>7} {'fixed':>7} {'trained':>8} {'mean':>7}"
+         f" {'cost':>7} {'gain':>7}")
+for n in SIZES:
+    r = res[n]
+    L.append(f"{n:>6} {r['nseed']:>5} {r['omit']:7.2f} {r['fixed']:7.2f} {r['trained']:8.2f}"
+             f" {r['mean']:7.2f} {r['fixed'] - r['omit']:7.2f} {r['omit'] - r['trained']:7.2f}")
+
+cost = [res[n]['fixed'] - res[n]['omit'] for n in SIZES]
+gain = [res[n]['omit'] - res[n]['trained'] for n in SIZES]
+L += ['',
+      'cost of imposing 1/i rather than omitting it (sec:rankabl sentence 3):',
+      '  ' + ', '.join(f'{c:.2f}' for c in cost),
+      f'gain from training it instead: between {min(gain):.2f} and {max(gain):.2f}',
+      f"at n=25 the fixed profile reaches {res[25]['fixed']:.2f} against the training-mean"
+      f" baseline's {res[25]['mean']:.2f}"]
+
+trained = [res[n]['trained'] for n in SIZES]
+assert np.allclose(trained, TABLE_ROW, atol=0.005), \
+    f'trained arm {[round(t, 2) for t in trained]} != table:hca-reg row {TABLE_ROW}'
+assert all(c > 0 for c in cost), f'imposing 1/i no longer costs at every size: {cost}'
+L.append('')
+L.append('checks: trained arm matches table:hca-reg; imposing 1/i costs at every size.')
+
+report = '\n'.join(L)
+print(report)
+with open(OUT, 'w') as fh:
+    fh.write(report + '\n')
+print(f'\nwrote {OUT}')

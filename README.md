@@ -2,7 +2,7 @@
 
 <img alt="Three spectral vision transformers trained from scratch on 100 ADNI3 subjects each, shown on held-out subjects. Top row: each subject reconstructed from principal components, block cosine coefficients and surface graph Laplacian modes. Bottom row: each model's attention projected to the image for sex classification, age estimation and cognitive status." src="assets/spectralViT_adni3.gif">
 
-<sub>Three spectral ViTs, one per basis family, trained from scratch on 100 subjects each, reconstructed from withheld <a href="https://adni.loni.usc.edu/">ADNI</a> data (see <a href="demo.ipynb"><code>demo.ipynb</code></a>).</sub>
+<sub>Three spectral ViTs trained from scratch on 100 subjects each, reconstructed from withheld <a href="https://adni.loni.usc.edu/">ADNI</a> data (see <a href="demo.ipynb"><code>demo.ipynb</code></a>).</sub>
 
 ## Summary
 - **Spectral tokens.** An image is tokenized into coefficients of a fixed basis instead of spatial patches: each token is one spectral mode, and the sequence length is chosen rather than implied by resolution.
@@ -37,16 +37,16 @@ Each experiment has a sweep script that trains every model by training-set size 
 
 | Experiment | Train | Table or figure |
 |---|---|---|
-| Simulated patterns | [`python sim_sweep.py`](sim_sweep.py) | [`python make_fig_sim_curves.py`](make_fig_sim_curves.py) |
-| MNIST | [`python mnist_sweep.py`](mnist_sweep.py) | [`python make_table_mnist.py`](make_table_mnist.py) |
-| CIFAR-10 and CIFAR-100 | [`python cifar_sweep.py`](cifar_sweep.py) | [`python make_table_cifar.py`](make_table_cifar.py) |
-| Aligned faces (LFW) | [`python faces_sweep.py`](faces_sweep.py) | [`python make_table_faces.py`](make_table_faces.py) |
-| MedMNIST3D | [`python medmnist_sweep.py`](medmnist_sweep.py) | [`python make_medmnist_curve.py`](make_medmnist_curve.py) |
-| ModelNet40 shapes | [`python modelnet_sweep.py`](modelnet_sweep.py) | [`python make_table_modelnet.py`](make_table_modelnet.py) |
-| IXI sex classification | [`python ixi_cache.py`](ixi_cache.py), then [`python ixi_nested.py`](ixi_nested.py) | [`python make_table_ixi.py`](make_table_ixi.py) |
-| HCP-Aging age | [`python hca_cache.py`](hca_cache.py), then [`python hca_regress.py <n>`](hca_regress.py) | [`python make_table_hca_reg.py`](make_table_hca_reg.py) |
-| HCP-Aging classification | [`python hca_sweep.py <n>`](hca_sweep.py) | [`python make_table_hca_cls.py`](make_table_hca_cls.py) |
-| Neurostimulation response | Protected data | [`python make_table_dbs.py`](make_table_dbs.py) |
+| Simulated patterns | [`python experiments/sim_sweep.py`](experiments/sim_sweep.py) | [`python figures/make_fig_sim_curves.py`](figures/make_fig_sim_curves.py) |
+| MNIST | [`python experiments/mnist_sweep.py`](experiments/mnist_sweep.py) | [`python tables/make_table_mnist.py`](tables/make_table_mnist.py) |
+| CIFAR-10 and CIFAR-100 | [`python experiments/cifar_sweep.py`](experiments/cifar_sweep.py) | [`python tables/make_table_cifar.py`](tables/make_table_cifar.py) |
+| Aligned faces (LFW) | [`python experiments/faces_sweep.py`](experiments/faces_sweep.py) | [`python tables/make_table_faces.py`](tables/make_table_faces.py) |
+| MedMNIST3D | [`python experiments/medmnist_sweep.py`](experiments/medmnist_sweep.py) | [`python tables/make_medmnist_curve.py`](tables/make_medmnist_curve.py) |
+| ModelNet40 shapes | [`python experiments/modelnet_sweep.py`](experiments/modelnet_sweep.py) | [`python tables/make_table_modelnet.py`](tables/make_table_modelnet.py) |
+| IXI sex classification | [`python preprocessing/ixi_cache.py`](preprocessing/ixi_cache.py), then [`python experiments/ixi_nested.py`](experiments/ixi_nested.py) | [`python tables/make_table_ixi.py`](tables/make_table_ixi.py) |
+| HCP-Aging age | [`python preprocessing/hca_cache.py`](preprocessing/hca_cache.py), then [`python experiments/hca_regress.py <n>`](experiments/hca_regress.py) | [`python tables/make_table_hca_reg.py`](tables/make_table_hca_reg.py) |
+| HCP-Aging classification | [`python experiments/hca_sweep.py <n>`](experiments/hca_sweep.py) | [`python tables/make_table_hca_cls.py`](tables/make_table_hca_cls.py) |
+| Neurostimulation response | Protected data | [`python tables/make_table_dbs.py`](tables/make_table_dbs.py) |
 | ADNI3 multitask demo | [`demo.ipynb`](demo.ipynb) | Above figure |
 
 ## Publications
