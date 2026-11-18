@@ -116,8 +116,12 @@ text(x_g, Y_LAB_B, 'Spectral ViT (proposed)', ha='left', fontsize=FS + 0.5, weig
 for i in range(N_W):
     x = x_g + i * (S + 0.04)
     ax = image_axes(x, YB - S / 2, S, S)
-    v = EIG[i]
-    ax.imshow(v, cmap='RdBu_r', vmin=-np.abs(v).max(), vmax=np.abs(v).max())
+    v = EIG[i]; vm = np.abs(v).max()
+    if DARK:   # near-zero weights fade into the background instead of sitting on a white square
+        rgba = plt.get_cmap('RdBu_r')((v / vm + 1) / 2); rgba[..., 3] = np.clip(np.abs(v) / vm * 1.6, 0, 1)
+        ax.imshow(rgba)
+    else:
+        ax.imshow(v, cmap='RdBu_r', vmin=-vm, vmax=vm)
     ax.text(0.06, 0.94, r'$\mathbf{w}_%d$' % (i + 1), transform=ax.transAxes, fontsize=FS - 1,
             ha='left', va='top', color=INK)
 TRX = z['train_examples']

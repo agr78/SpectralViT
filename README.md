@@ -1,49 +1,70 @@
-<img alt="Three spectral vision transformers trained from scratch on 100 ADNI3 subjects each, shown on held-out subjects. Top row: each subject reconstructed from principal components, block cosine coefficients and surface graph Laplacian modes. Bottom row: each model's attention projected to the image for sex classification, age estimation and cognitive status." src="spectralViT_adni3.gif">
+# Spectral Vision Transformer for Efficient Tokenization with Limited Data (`SpectralViT`)
 
-<sub>Held-out ADNI3 subjects; code in <a href="demo.ipynb"><code>demo.ipynb</code></a>. Data used in this figure were obtained from the Alzheimer's Disease Neuroimaging Initiative (ADNI) database (adni.loni.usc.edu).</sub>
+<img alt="Three spectral vision transformers trained from scratch on 100 ADNI3 subjects each, shown on held-out subjects. Top row: each subject reconstructed from principal components, block cosine coefficients and surface graph Laplacian modes. Bottom row: each model's attention projected to the image for sex classification, age estimation and cognitive status." src="assets/spectralViT_adni3.gif">
 
-# Spectral Vision Transformer
-
-Repository for [_Spectral Vision Transformer for Efficient Tokenization with Limited Data_](https://openreview.net/pdf?id=cH5gmxBepK).
+<sub>Three spectral ViTs, one per basis family, trained from scratch on 100 subjects each, reconstructed from withheld <a href="https://adni.loni.usc.edu/">ADNI</a> data (see <a href="demo.ipynb"><code>demo.ipynb</code></a>).</sub>
 
 ## Summary
-Efficient image tokenization using projections on to spectral bases to reduce the number of parameters associated with fitting vision transformers.
+- **Spectral tokens.** An image is tokenized into coefficients of a fixed basis instead of spatial patches: each token is one spectral mode, and the sequence length is chosen rather than implied by resolution.
+- **Example bases.** Empirical (principal components), harmonic (cosine and Fourier) and graphical (graph Laplacian eigenvectors). Any ordered basis may be admitted, with learned rank weights and positional embeddings by mode.
+- **Limited data.** At the smallest training sizes the spectral ViT leads on brain MRI sex ([IXI](https://brain-development.org/ixi-dataset/)), age ([HCP-Aging](https://www.humanconnectome.org/study/hcp-lifespan-aging)) and neurostimulation response, all six [MedMNIST3D](https://medmnist.com/) cohorts, [MNIST](http://yann.lecun.com/exdb/mnist/), aligned faces ([LFW](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.fetch_lfw_people.html)), simulated patterns and [ModelNet40](https://modelnet.cs.princeton.edu/) shapes; a block extension leads or matches patch tokens on [CIFAR-10 and CIFAR-100](https://www.cs.toronto.edu/~kriz/cifar.html).
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="spectralViT_dark.png">
-  <img alt="Our proposed spectral ViT differs primarily from conventional ViTs by constructing spectral rather than spatial tokens. Spectral tokens from any ordered basis possess inherent rank or hierarchical order. Our approach introduces a global inductive bias and spectral positional embeddings by mode rather than local patch embedding. Tinted cells carry learned weights. The spatial ViT must learn its projection, whereas the spectral projection is fixed, leaving only the rank weights and the positional embeddings to be learned." src="spectralViT.png">
-</picture>
+<img alt="Our proposed spectral ViT differs primarily from conventional ViTs by constructing spectral rather than spatial tokens. Spectral tokens from any ordered basis possess inherent rank or hierarchical order. Our approach introduces a global inductive bias and spectral positional embeddings by mode rather than local patch embedding. Tinted cells carry learned weights. The spatial ViT must learn its projection, whereas the spectral projection is fixed, leaving only the rank weights and the positional embeddings to be learned." src="assets/spectralViT_dark.png">
 
-## Install
-The `dpeekenv` can be installed from `dpeekenv.yml` or
-```pip install -r requirements.txt```
+<sub>The spectral ViT against a spatial ViT: the two differ only in the projection, which is fixed for spectral tokens. Tinted cells carry learned weights.</sub>
 
-## Contents
-Various tokenizations can be found in [`bases.ipynb`](https://github.com/agr78/SpectralViT/blob/main/bases.ipynb) <br/>
-Sample size varying pattern classifications can be found in [`pattern.ipynb`](https://github.com/agr78/SpectralViT/blob/main/sim.ipynb) <br/>
-The spatially invariant Fourier basis example can be found in [`objects.ipynb`](https://github.com/agr78/SpectralViT/blob/main/spatial_invariance.ipynb) <br/>
-Sex classification for all models can be found in [`ixi.ipynb`](https://github.com/agr78/SpectralViT/blob/main/ixi.ipynb) <br/>
-Candidate selection can be found in [`dbs.ipynb`](https://github.com/agr78/SpectralViT/blob/main/dbs.ipynb) <br/>
-The three-task ADNI3 demo in the figure above can be found in [`demo.ipynb`](https://github.com/agr78/SpectralViT/blob/main/demo.ipynb) <br/>
+## Preliminaries
+Scripts read their data locations from the environment (see [`paths.py`](paths.py)); results are written to `results/`.
+```
+export SPECTRALVIT_DATA=/path/to/data          # datasets and caches (default: data/ in this repository)
+export SPECTRALVIT_RAW=/path/to/bids           # original cohorts in BIDS layout (default: $SPECTRALVIT_DATA/raw)
+export ADNI_ROOT=/path/to/ADNI3                # demo.ipynb only: ADNI3 in BIDS layout
+export ADNI_WORK=/path/to/derivatives/ADNI     # demo.ipynb only: registered volumes, SynthSeg outputs, figure
+```
+[MNIST](http://yann.lecun.com/exdb/mnist/), [CIFAR-10 and CIFAR-100](https://www.cs.toronto.edu/~kriz/cifar.html), [LFW](https://scikit-learn.org/stable/modules/generated/sklearn.datasets.fetch_lfw_people.html), [MedMNIST3D](https://medmnist.com/), [ModelNet40](https://modelnet.cs.princeton.edu/) and [IXI](https://brain-development.org/ixi-dataset/) are public. HCP-Aging and ADNI require their data use agreements. The neurostimulation cohort is protected clinical data and is not released.
+
+## Installation
+```
+git clone https://github.com/agr78/SpectralViT.git
+cd SpectralViT
+conda env create -f spectralViT.yml
+conda activate spectralViT
+```
+Alternatively, [`pip install -r requirements.txt --extra-index-url https://download.pytorch.org/whl/cu128`](requirements.txt).
+
+## Usage
+Each experiment has a sweep script that trains every model by training-set size and a builder that turns its results into the paper's table or figure.
+
+| Experiment | Train | Table or figure |
+|---|---|---|
+| Simulated patterns | [`python sim_sweep.py`](sim_sweep.py) | [`python make_fig_sim_curves.py`](make_fig_sim_curves.py) |
+| MNIST | [`python mnist_sweep.py`](mnist_sweep.py) | [`python make_table_mnist.py`](make_table_mnist.py) |
+| CIFAR-10 and CIFAR-100 | [`python cifar_sweep.py`](cifar_sweep.py) | [`python make_table_cifar.py`](make_table_cifar.py) |
+| Aligned faces (LFW) | [`python faces_sweep.py`](faces_sweep.py) | [`python make_table_faces.py`](make_table_faces.py) |
+| MedMNIST3D | [`python medmnist_sweep.py`](medmnist_sweep.py) | [`python make_medmnist_curve.py`](make_medmnist_curve.py) |
+| ModelNet40 shapes | [`python modelnet_sweep.py`](modelnet_sweep.py) | [`python make_table_modelnet.py`](make_table_modelnet.py) |
+| IXI sex classification | [`python ixi_cache.py`](ixi_cache.py), then [`python ixi_nested.py`](ixi_nested.py) | [`python make_table_ixi.py`](make_table_ixi.py) |
+| HCP-Aging age | [`python hca_cache.py`](hca_cache.py), then [`python hca_regress.py <n>`](hca_regress.py) | [`python make_table_hca_reg.py`](make_table_hca_reg.py) |
+| HCP-Aging classification | [`python hca_sweep.py <n>`](hca_sweep.py) | [`python make_table_hca_cls.py`](make_table_hca_cls.py) |
+| Neurostimulation response | Protected data | [`python make_table_dbs.py`](make_table_dbs.py) |
+| ADNI3 multitask demo | [`demo.ipynb`](demo.ipynb) | Above figure |
 
 ## Publications
 If this code is used, please cite the following:
-> [Preprint]([https://doi.org/10.1227/neu.0000000000003721](https://openreview.net/attachment?id=cH5gmxBepK&name=pdf)): A. G. Roberts et al., Spectral Vision Transformer for Efficient Tokenization with Limited Data, 2026
-> 
+> [arXiv:2605.12026](https://arxiv.org/abs/2605.12026): A. G. Roberts et al., Spectral Vision Transformer for Efficient Tokenization with Limited Data, 2026.
 
 ## BibTex
-
 ```bibtex
 @article{roberts2026spectralViT,
-      title={Spectral Vision Transformer for Efficient Tokenization with Limited Data}, 
-      author={Alexandra G. Roberts and Maneesh John and Jinwei Zhang and Dominick Romano and Mert Sisman and Ki Sueng Choi and Heejong Kim and Mert R. Sabuncu and Thanh D. Nguyen and Alexey V. Dimov and Pascal Spincemaille and Brian H. Kopell and Yi Wang},
+      title={Spectral Vision Transformer for Efficient Tokenization with Limited Data},
+      author={Alexandra G. Roberts and Maneesh John and Jinwei Zhang and Dominick Romano and Mert {\c{S}}i{\c{s}}man and Ki Sueng Choi and Heejong Kim and Mert R. Sabuncu and Thanh D. Nguyen and Alexey V. Dimov and Pascal Spincemaille and Brian H. Kopell and Yi Wang},
       year={2026},
       eprint={2605.12026},
       archivePrefix={arXiv},
       primaryClass={cs.CV},
-      url={https://arxiv.org/abs/2605.12026}, 
+      url={https://arxiv.org/abs/2605.12026},
 }
 ```
 
 ## Contact
-Please direct questions to [Alexandra G. Roberts](https://github.com/agr78) at agr78@cornell.edu.
+Please direct questions to [Alexandra G. Roberts](https://github.com/agr78) at [agr78@cornell.edu](mailto:agr78@cornell.edu).
